@@ -67,7 +67,6 @@ font-weight:bold;
 <h2>TronPick Account</h2>
 
 <input id="tronUser" placeholder="TronPick Username"><br>
-
 <input id="tronPass" type="password" placeholder="TronPick Password"><br><br>
 
 <button onclick="saveTron()">Save Account</button>
@@ -78,8 +77,8 @@ font-weight:bold;
 
 <p id="botStatus">Bot Status : OFF</p>
 <p id="timer">Next Claim In : 60:00</p>
-<button class="start" onclick="startBot()">Start Auto Claim</button>
 
+<button class="start" onclick="startBot()">Start Auto Claim</button>
 <button class="stop" onclick="stopBot()">Stop</button>
 
 <br>
@@ -92,6 +91,9 @@ font-weight:bold;
 </div>
 
 <script>
+
+let timeLeft = 3600;
+let timerInterval;
 
 /* sauvegarder compte TronPick */
 function saveTron(){
@@ -122,12 +124,12 @@ document.getElementById("botStatus").innerText="Bot Status : RUNNING";
 
 localStorage.setItem("botStatus","running");
 
-alert("Auto Claim started");
+startTimer();
 
 }
 
 /* arrêter bot */
-  function stopBot(){
+function stopBot(){
 
 document.getElementById("botStatus").innerText="Bot Status : OFF";
 
@@ -135,15 +137,36 @@ localStorage.setItem("botStatus","off");
 
 clearInterval(timerInterval);
 
-alert("Auto Claim stopped");
+}
+
+/* timer */
+function startTimer(){
+
+clearInterval(timerInterval);
+
+timerInterval=setInterval(function(){
+
+timeLeft--;
+
+let minutes=Math.floor(timeLeft/60);
+let seconds=timeLeft%60;
+
+if(seconds<10){
+seconds="0"+seconds;
+}
+
+document.getElementById("timer").innerText=
+"Next Claim In : "+minutes+":"+seconds;
+
+if(timeLeft<=0){
+
+alert("Time to claim!");
+
+timeLeft=3600;
 
 }
 
-document.getElementById("botStatus").innerText="Bot Status : OFF";
-
-localStorage.setItem("botStatus","off");
-
-alert("Auto Claim stopped");
+},1000);
 
 }
 
@@ -161,37 +184,9 @@ let status=localStorage.getItem("botStatus");
 
 if(status==="running"){
 document.getElementById("botStatus").innerText="Bot Status : RUNNING";
-}
-let timeLeft = 3600; // 3600 secondes = 1 heure
-let timerInterval;
-
-function startTimer(){
-
-timerInterval = setInterval(function(){
-
-timeLeft--;
-
-let minutes = Math.floor(timeLeft / 60);
-let seconds = timeLeft % 60;
-
-if(seconds < 10){
-seconds = "0" + seconds;
+startTimer();
 }
 
-document.getElementById("timer").innerText =
-"Next Claim In : " + minutes + ":" + seconds;
-
-if(timeLeft <= 0){
-
-alert("Time to claim!");
-
-timeLeft = 3600;
-
-}
-
-},1000);
-
-}
 </script>
 
 </body>
