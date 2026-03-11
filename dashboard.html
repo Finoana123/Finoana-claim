@@ -127,7 +127,17 @@ alert("Auto Claim started");
 }
 
 /* arrêter bot */
-function stopBot(){
+  function stopBot(){
+
+document.getElementById("botStatus").innerText="Bot Status : OFF";
+
+localStorage.setItem("botStatus","off");
+
+clearInterval(timerInterval);
+
+alert("Auto Claim stopped");
+
+}
 
 document.getElementById("botStatus").innerText="Bot Status : OFF";
 
