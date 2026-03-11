@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+<title>Dashboard - Finoana Claim</title>
+
+<style>
+
+body{
+font-family:Arial;
+text-align:center;
+margin-top:80px;
+background:#f2f2f2;
+}
+
+button{
+padding:12px 25px;
+margin:10px;
+border:none;
+border-radius:5px;
+font-size:16px;
+cursor:pointer;
+}
+
+.start{
+background:green;
+color:white;
+}
+
+.stop{
+background:red;
+color:white;
+}
+
+.logout{
+background:gray;
+color:white;
+}
+
+.footer{
+position:fixed;
+bottom:10px;
+left:10px;
+}
+
+.footer a{
+color:blue;
+margin-right:15px;
+text-decoration:none;
+font-weight:bold;
+}
+
+</style>
+
+</head>
+
+<body>
+
+<h1>Finoana Dashboard</h1>
+
+<p>Bot status: OFF</p>
+
+<button class="start" onclick="startBot()">Start Auto Claim</button>
+
+<button class="stop" onclick="stopBot()">Stop</button>
+
+<br>
+
+<button class="logout" onclick="logout()">Logout</button>
+
+<div class="footer">
+<a href="#">FAQ</a>
+<a href="#">Contact</a>
+</div>
+
+<script>
+
+function startBot(){
+alert("Auto Claim Started (demo)");
+}
+
+function stopBot(){
+alert("Auto Claim Stopped (demo)");
+}
+
+function logout(){
+window.location.href="index.html";
+}
+
+</script>
+
+</body>
+
+</html>
