@@ -79,18 +79,32 @@ font-weight:bold;
 <script>
 function login(){
 
-let email=document.getElementById("email").value;
+let email=document.getElementById("email").value.trim();
 let password=document.getElementById("password").value;
 
-let savedUser=JSON.parse(localStorage.getItem("user"));
+let users=JSON.parse(localStorage.getItem("users")) || [];
 
-if(savedUser && email===savedUser.email && password===savedUser.password){
+let foundUser=null;
+
+for(let i=0;i<users.length;i++){
+
+if(users[i].email===email && users[i].password===password){
+foundUser=users[i];
+break;
+}
+
+}
+
+if(foundUser){
+
+/* créer session */
+localStorage.setItem("loggedUser",JSON.stringify(foundUser));
 
 window.location.href="dashboard.html";
 
 }else{
 
-alert("Invalid login");
+alert("Invalid email or password");
 
 }
 
