@@ -5,7 +5,6 @@
 <title>Dashboard - Finoana Claim</title>
 
 <style>
-
 body{
 font-family:Arial;
 text-align:center;
@@ -55,7 +54,6 @@ margin-right:15px;
 text-decoration:none;
 font-weight:bold;
 }
-
 </style>
 
 </head>
@@ -76,13 +74,12 @@ font-weight:bold;
 <h2>Auto Claim Bot</h2>
 
 <p id="botStatus">Bot Status : OFF</p>
-<p id="timer">Next Claim In : 60:00</p>
+Next Claim In : <input id="timerInput" type="text" value="60:00" style="width:80px;text-align:center;"><br>
 
 <button class="start" onclick="startBot()">Start Auto Claim</button>
 <button class="stop" onclick="stopBot()">Stop</button>
 
 <br>
-
 <button class="logout" onclick="logout()">Logout</button>
 
 <div class="footer">
@@ -97,94 +94,77 @@ let timerInterval;
 
 /* sauvegarder compte TronPick */
 function saveTron(){
+    let tronUser=document.getElementById("tronUser").value;
+    let tronPass=document.getElementById("tronPass").value;
 
-let tronUser=document.getElementById("tronUser").value;
-let tronPass=document.getElementById("tronPass").value;
+    if(tronUser=="" || tronPass==""){
+        alert("Please enter TronPick account");
+        return;
+    }
 
-if(tronUser=="" || tronPass==""){
-alert("Please enter TronPick account");
-return;
-}
+    let loggedUser=JSON.parse(localStorage.getItem("loggedUser"));
+    loggedUser.tronUser=tronUser;
+    loggedUser.tronPass=tronPass;
 
-let loggedUser=JSON.parse(localStorage.getItem("loggedUser"));
-
-loggedUser.tronUser=tronUser;
-loggedUser.tronPass=tronPass;
-
-localStorage.setItem("loggedUser",JSON.stringify(loggedUser));
-
-alert("TronPick account saved");
-
+    localStorage.setItem("loggedUser",JSON.stringify(loggedUser));
+    alert("TronPick account saved");
 }
 
 /* démarrer bot */
 function startBot(){
-
-document.getElementById("botStatus").innerText="Bot Status : RUNNING";
-
-localStorage.setItem("botStatus","running");
-
-startTimer();
-
+    document.getElementById("botStatus").innerText="Bot Status : RUNNING";
+    localStorage.setItem("botStatus","running");
+    startTimer();
 }
 
 /* arrêter bot */
 function stopBot(){
-
-document.getElementById("botStatus").innerText="Bot Status : OFF";
-
-localStorage.setItem("botStatus","off");
-
-clearInterval(timerInterval);
-
+    document.getElementById("botStatus").innerText="Bot Status : OFF";
+    localStorage.setItem("botStatus","off");
+    clearInterval(timerInterval);
 }
 
-/* timer */
+/* timer modifiable */
 function startTimer(){
 
-clearInterval(timerInterval);
+    clearInterval(timerInterval);
 
-timerInterval=setInterval(function(){
+    // lire le temps depuis l'input
+    let timerValue = document.getElementById("timerInput").value;
+    let parts = timerValue.split(":");
+    let minutes = parseInt(parts[0]);
+    let seconds = parseInt(parts[1]);
+    if(isNaN(minutes) || isNaN(seconds)){
+        alert("Invalid timer format. Use mm:ss");
+        return;
+    }
+    timeLeft = minutes*60 + seconds;
 
-timeLeft--;
+    timerInterval = setInterval(function(){
+        timeLeft--;
+        let m = Math.floor(timeLeft/60);
+        let s = timeLeft%60;
+        if(s<10){ s="0"+s; }
+        document.getElementById("timerInput").value = m + ":" + s;
 
-let minutes=Math.floor(timeLeft/60);
-let seconds=timeLeft%60;
-
-if(seconds<10){
-seconds="0"+seconds;
-}
-
-document.getElementById("timer").innerText=
-"Next Claim In : "+minutes+":"+seconds;
-
-if(timeLeft<=0){
-
-alert("Time to claim!");
-
-timeLeft=3600;
-
-}
-
-},1000);
-
+        if(timeLeft <= 0){
+            alert("Time to claim!");
+            timeLeft = 3600; // reset à 1h par défaut
+        }
+    },1000);
 }
 
 /* logout */
 function logout(){
-
-localStorage.removeItem("loggedUser");
-
-window.location.href="index.html";
-
+    localStorage.removeItem("loggedUser");
+    window.location.href="index.html";
 }
 
 /* restaurer statut */
 let status=localStorage.getItem("botStatus");
-
 if(status==="running"){
-document.getElementById("botStatus").innerText="Bot Status : RUNNING";
-startTimer();
+    document.getElementById("botStatus").innerText="Bot Status : RUNNING";
+    startTimer();
 }
 
 </script>
