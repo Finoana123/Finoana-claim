@@ -77,7 +77,7 @@ font-weight:bold;
 <h2>Auto Claim Bot</h2>
 
 <p id="botStatus">Bot Status : OFF</p>
-
+<p id="timer">Next Claim In : 60:00</p>
 <button class="start" onclick="startBot()">Start Auto Claim</button>
 
 <button class="stop" onclick="stopBot()">Stop</button>
@@ -152,7 +152,36 @@ let status=localStorage.getItem("botStatus");
 if(status==="running"){
 document.getElementById("botStatus").innerText="Bot Status : RUNNING";
 }
+let timeLeft = 3600; // 3600 secondes = 1 heure
+let timerInterval;
 
+function startTimer(){
+
+timerInterval = setInterval(function(){
+
+timeLeft--;
+
+let minutes = Math.floor(timeLeft / 60);
+let seconds = timeLeft % 60;
+
+if(seconds < 10){
+seconds = "0" + seconds;
+}
+
+document.getElementById("timer").innerText =
+"Next Claim In : " + minutes + ":" + seconds;
+
+if(timeLeft <= 0){
+
+alert("Time to claim!");
+
+timeLeft = 3600;
+
+}
+
+},1000);
+
+}
 </script>
 
 </body>
