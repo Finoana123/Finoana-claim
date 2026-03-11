@@ -36,7 +36,8 @@ color:white;
 background:red;
 color:white;
 }
-
+<button onclick="claimNow()">Claim Now</button>
+    
 .logout{
 background:gray;
 color:white;
@@ -89,6 +90,11 @@ Next Claim In : <input id="timerInput" type="text" value="60:00" style="width:80
 </div>
 
 <script>
+    function claimNow(){
+
+autoClaim();
+
+    }
     let userData = JSON.parse(localStorage.getItem("loggedUser"));
 
 if(userData && userData.username){
