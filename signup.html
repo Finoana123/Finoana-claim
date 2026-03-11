@@ -1,0 +1,89 @@
+!DOCTYPE html>
+<html>
+
+<head>
+<title>Sign Up - Finoana Claim</title>
+
+<style>
+
+body{
+font-family:Arial;
+text-align:center;
+margin-top:100px;
+background:#f2f2f2;
+}
+
+input{
+padding:10px;
+margin:5px;
+width:220px;
+}
+
+button{
+padding:10px 25px;
+background:green;
+color:white;
+border:none;
+border-radius:5px;
+font-size:16px;
+cursor:pointer;
+}
+
+.footer{
+position:fixed;
+bottom:10px;
+left:10px;
+}
+
+.footer a{
+color:blue;
+margin-right:15px;
+text-decoration:none;
+font-weight:bold;
+}
+
+</style>
+
+</head>
+
+<body>
+
+<h1>Create Account</h1>
+
+<input id="name" placeholder="Name">
+
+<br>
+
+<input id="email" placeholder="Email">
+
+<br>
+
+<input id="password" type="password" placeholder="Password">
+
+<br>
+
+<input id="confirmPassword" type="password" placeholder="Confirm Password">
+
+<br><br>
+
+<button onclick="createAccount()">Sign Up</button>
+
+<br><br>
+
+<a href="index.html">Back to Login</a>
+
+<div class="footer">
+<a href="#">FAQ</a>
+<a href="#">Contact</a>
+</div>
+
+<script>
+
+function createAccount(){
+
+let name=document.getElementById("name").value;
+let email=document.getElementById("email").value;
+let password=document.getElementById("password").value;
+let confirmPassword=document.getElementById("confirmPassword").value;
+
+if(name=="" || email=="" || password=="" ||
