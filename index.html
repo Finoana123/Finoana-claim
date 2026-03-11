@@ -1,37 +1,104 @@
 <!DOCTYPE html>
 <html>
+
 <head>
-<title>Finoana Auto Claim</title>
+<title>Finoana Claim</title>
+
 <style>
+
 body{
 font-family: Arial;
 text-align:center;
-margin-top:100px;
+margin-top:120px;
 background:#f2f2f2;
 }
+
+input{
+padding:10px;
+margin:5px;
+width:220px;
+}
+
 button{
-padding:15px 30px;
-font-size:18px;
-background:#4CAF50;
-color:white;
+padding:10px 20px;
+margin:5px;
 border:none;
 border-radius:5px;
+font-size:16px;
+cursor:pointer;
 }
+
+.login{
+background:green;
+color:white;
+}
+
+.signup{
+background:orange;
+color:white;
+}
+
+.footer{
+position:fixed;
+bottom:10px;
+left:10px;
+}
+
+.footer a{
+color:blue;
+margin-right:15px;
+text-decoration:none;
+font-weight:bold;
+}
+
 </style>
+
 </head>
 
 <body>
 
 <h1>Finoana Auto Claim</h1>
-<p>Auto claim service for TronPick</p>
 
-<button onclick="start()">Start Auto Claim</button>
+<h2>Login</h2>
+
+<input id="email" placeholder="Email">
+
+<br>
+
+<input id="password" type="password" placeholder="Password">
+
+<br><br>
+
+<button class="login" onclick="login()">Login</button>
+
+<button class="signup" onclick="signup()">Sign up</button>
+
+<div class="footer">
+<a href="#">FAQ</a>
+<a href="#">Contact</a>
+</div>
 
 <script>
-function start(){
-alert("Auto claim started!");
+
+function login(){
+
+let email=document.getElementById("email").value;
+let password=document.getElementById("password").value;
+
+if(email=="" || password==""){
+alert("Please enter email and password");
+}else{
+alert("Login successful");
 }
+
+}
+
+function signup(){
+alert("Sign up page coming soon");
+}
+
 </script>
 
 </body>
+
 </html>
