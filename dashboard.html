@@ -13,6 +13,12 @@ margin-top:80px;
 background:#f2f2f2;
 }
 
+input{
+padding:10px;
+margin:5px;
+width:220px;
+}
+
 button{
 padding:12px 25px;
 margin:10px;
@@ -57,34 +63,27 @@ font-weight:bold;
 <body>
 
 <h1>Finoana Dashboard</h1>
-  <h2>TronPick Account</h2>
 
-<input id="tronUser" placeholder="TronPick Username">
+<h2>TronPick Account</h2>
 
-<br>
+<input id="tronUser" placeholder="TronPick Username"><br>
 
-<input id="tronPass" type="password" placeholder="TronPick Password">
-
-<br><br>
+<input id="tronPass" type="password" placeholder="TronPick Password"><br><br>
 
 <button onclick="saveTron()">Save Account</button>
 
 <br><br>
 
-<p>Bot status: OFF</p>
+<h2>Auto Claim Bot</h2>
+
+<p id="botStatus">Bot Status : OFF</p>
 
 <button class="start" onclick="startBot()">Start Auto Claim</button>
 
 <button class="stop" onclick="stopBot()">Stop</button>
 
 <br>
-<h2>Auto Claim Bot</h2>
 
-<p id="botStatus">Bot Status : OFF</p>
-
-<button onclick="startBot()">Start Auto Claim</button>
-
-<button onclick="stopBot()">Stop</button>
 <button class="logout" onclick="logout()">Logout</button>
 
 <div class="footer">
@@ -94,24 +93,29 @@ font-weight:bold;
 
 <script>
 
-function startBot(){
-alert("Auto Claim Started (demo)");
+/* sauvegarder compte TronPick */
+function saveTron(){
+
+let tronUser=document.getElementById("tronUser").value;
+let tronPass=document.getElementById("tronPass").value;
+
+if(tronUser=="" || tronPass==""){
+alert("Please enter TronPick account");
+return;
 }
 
-function stopBot(){
-alert("Auto Claim Stopped (demo)");
+let loggedUser=JSON.parse(localStorage.getItem("loggedUser"));
+
+loggedUser.tronUser=tronUser;
+loggedUser.tronPass=tronPass;
+
+localStorage.setItem("loggedUser",JSON.stringify(loggedUser));
+
+alert("TronPick account saved");
+
 }
 
-function logout(){
-
-localStorage.removeItem("loggedUser");
-
-window.location.href="index.html";
-
-}
-</script>
-
-  <script>
+/* démarrer bot */
 function startBot(){
 
 document.getElementById("botStatus").innerText="Bot Status : RUNNING";
@@ -122,6 +126,7 @@ alert("Auto Claim started");
 
 }
 
+/* arrêter bot */
 function stopBot(){
 
 document.getElementById("botStatus").innerText="Bot Status : OFF";
@@ -131,14 +136,24 @@ localStorage.setItem("botStatus","off");
 alert("Auto Claim stopped");
 
 }
-    </script>
-  <script>
-    let status=localStorage.getItem("botStatus");
+
+/* logout */
+function logout(){
+
+localStorage.removeItem("loggedUser");
+
+window.location.href="index.html";
+
+}
+
+/* restaurer statut */
+let status=localStorage.getItem("botStatus");
 
 if(status==="running"){
 document.getElementById("botStatus").innerText="Bot Status : RUNNING";
 }
-</script>
-</body>
 
+</script>
+
+</body>
 </html>
