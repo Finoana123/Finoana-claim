@@ -1,3 +1,75 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+<title>Sign Up - Finoana Claim</title>
+
+<style>
+
+body{
+font-family:Arial;
+text-align:center;
+margin-top:100px;
+background:#f2f2f2;
+}
+
+input{
+padding:10px;
+margin:5px;
+width:220px;
+}
+
+button{
+padding:10px 25px;
+background:green;
+color:white;
+border:none;
+border-radius:5px;
+font-size:16px;
+cursor:pointer;
+}
+
+.footer{
+position:fixed;
+bottom:10px;
+left:10px;
+}
+
+.footer a{
+color:blue;
+margin-right:15px;
+text-decoration:none;
+font-weight:bold;
+}
+
+</style>
+</head>
+
+<body>
+
+<h1>Create Account</h1>
+
+<input id="name" placeholder="Name"><br>
+
+<input id="email" placeholder="Email"><br>
+
+<input id="password" type="password" placeholder="Password"><br>
+
+<input id="confirmPassword" type="password" placeholder="Confirm Password"><br><br>
+
+<button onclick="createAccount()">Sign Up</button>
+
+<br><br>
+
+<a href="index.html">Back to Login</a>
+
+<div class="footer">
+<a href="#">FAQ</a>
+<a href="#">Contact</a>
+</div>
+
+<script>
+
 function createAccount(){
 
 let name=document.getElementById("name").value.trim();
@@ -15,7 +87,7 @@ alert("Passwords do not match");
 return;
 }
 
-/* Vérifier mot de passe (lettres + chiffres) */
+/* password letters + numbers */
 let passwordPattern=/^(?=.*[A-Za-z])(?=.*\d).+$/;
 
 if(!passwordPattern.test(password)){
@@ -23,10 +95,8 @@ alert("Password must contain letters and numbers");
 return;
 }
 
-/* récupérer les utilisateurs */
 let users=JSON.parse(localStorage.getItem("users")) || [];
 
-/* vérifier doublons */
 for(let i=0;i<users.length;i++){
 
 if(users[i].email===email){
@@ -41,17 +111,14 @@ return;
 
 }
 
-/* créer utilisateur */
 let newUser={
 name:name,
 email:email,
 password:password
 };
 
-/* ajouter */
 users.push(newUser);
 
-/* sauvegarder */
 localStorage.setItem("users",JSON.stringify(users));
 
 alert("Account created successfully");
@@ -59,3 +126,8 @@ alert("Account created successfully");
 window.location.href="index.html";
 
 }
+
+</script>
+
+</body>
+</html>
