@@ -88,6 +88,11 @@ Next Claim In : <input id="timerInput" type="text" value="60:00" style="width:80
 </div>
 
 <script>
+    let loggedUser = localStorage.getItem("loggedUser");
+
+if(!loggedUser){
+window.location.href="index.html";
+}
 
 let timeLeft = 3600;
 let timerInterval;
