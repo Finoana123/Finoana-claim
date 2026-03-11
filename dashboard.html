@@ -36,10 +36,14 @@ color:white;
 background:red;
 color:white;
 }
-<button onclick="claimNow()">Claim Now</button>
-    
+
 .logout{
 background:gray;
+color:white;
+}
+
+.claim{
+background:orange;
 color:white;
 }
 
@@ -76,12 +80,16 @@ font-weight:bold;
 <h2>Auto Claim Bot</h2>
 
 <p id="botStatus">Bot Status : OFF</p>
-Next Claim In : <input id="timerInput" type="text" value="60:00" style="width:80px;text-align:center;"><br>
+
+Next Claim In :
+<input id="timerInput" type="text" value="60:00" style="width:80px;text-align:center;"><br>
 
 <button class="start" onclick="startBot()">Start Auto Claim</button>
 <button class="stop" onclick="stopBot()">Stop</button>
+<button class="claim" onclick="claimNow()">Claim Now</button>
 
 <br>
+
 <button class="logout" onclick="logout()">Logout</button>
 
 <div class="footer">
@@ -90,19 +98,17 @@ Next Claim In : <input id="timerInput" type="text" value="60:00" style="width:80
 </div>
 
 <script>
-    function claimNow(){
 
-autoClaim();
-
-    }
-    let userData = JSON.parse(localStorage.getItem("loggedUser"));
+/* afficher username */
+let userData = JSON.parse(localStorage.getItem("loggedUser"));
 
 if(userData && userData.username){
 document.getElementById("welcomeUser").innerText =
 "Welcome " + userData.username;
 }
-    
-    let loggedUser = localStorage.getItem("loggedUser");
+
+/* sécurité dashboard */
+let loggedUser = localStorage.getItem("loggedUser");
 
 if(!loggedUser){
 window.location.href="index.html";
@@ -113,77 +119,121 @@ let timerInterval;
 
 /* sauvegarder compte TronPick */
 function saveTron(){
-    let tronUser=document.getElementById("tronUser").value;
-    let tronPass=document.getElementById("tronPass").value;
 
-    if(tronUser=="" || tronPass==""){
-        alert("Please enter TronPick account");
-        return;
-    }
+let tronUser=document.getElementById("tronUser").value;
+let tronPass=document.getElementById("tronPass").value;
 
-    let loggedUser=JSON.parse(localStorage.getItem("loggedUser"));
-    loggedUser.tronUser=tronUser;
-    loggedUser.tronPass=tronPass;
-
-    localStorage.setItem("loggedUser",JSON.stringify(loggedUser));
-    alert("TronPick account saved");
+if(tronUser=="" || tronPass==""){
+alert("Please enter TronPick account");
+return;
 }
 
-/* démarrer bot */
+let loggedUser=JSON.parse(localStorage.getItem("loggedUser"));
+
+loggedUser.tronUser=tronUser;
+loggedUser.tronPass=tronPass;
+
+localStorage.setItem("loggedUser",JSON.stringify(loggedUser));
+
+alert("TronPick account saved");
+
+}
+
+/* start bot */
+
 function startBot(){
-    document.getElementById("botStatus").innerText="Bot Status : RUNNING";
-    localStorage.setItem("botStatus","running");
-    startTimer();
+
+document.getElementById("botStatus").innerText="Bot Status : RUNNING";
+
+localStorage.setItem("botStatus","running");
+
+startTimer();
+
 }
 
-/* arrêter bot */
+/* stop bot */
+
 function stopBot(){
-    document.getElementById("botStatus").innerText="Bot Status : OFF";
-    localStorage.setItem("botStatus","off");
-    clearInterval(timerInterval);
+
+document.getElementById("botStatus").innerText="Bot Status : OFF";
+
+localStorage.setItem("botStatus","off");
+
+clearInterval(timerInterval);
+
 }
 
-/* timer modifiable */
+/* claim manuel */
+
+function claimNow(){
+
+alert("Manual claim executed");
+
+}
+
+/* timer */
+
 function startTimer(){
 
-    clearInterval(timerInterval);
+clearInterval(timerInterval);
 
-    // lire le temps depuis l'input
-    let timerValue = document.getElementById("timerInput").value;
-    let parts = timerValue.split(":");
-    let minutes = parseInt(parts[0]);
-    let seconds = parseInt(parts[1]);
-    if(isNaN(minutes) || isNaN(seconds)){
-        alert("Invalid timer format. Use mm:ss");
-        return;
-    }
-    timeLeft = minutes*60 + seconds;
+let timerValue = document.getElementById("timerInput").value;
 
-    timerInterval = setInterval(function(){
-        timeLeft--;
-        let m = Math.floor(timeLeft/60);
-        let s = timeLeft%60;
-        if(s<10){ s="0"+s; }
-        document.getElementById("timerInput").value = m + ":" + s;
+let parts = timerValue.split(":");
 
-        if(timeLeft <= 0){
-            alert("Time to claim!");
-            timeLeft = 3600; // reset à 1h par défaut
-        }
-    },1000);
+let minutes = parseInt(parts[0]);
+let seconds = parseInt(parts[1]);
+
+if(isNaN(minutes) || isNaN(seconds)){
+alert("Invalid timer format mm:ss");
+return;
+}
+
+timeLeft = minutes*60 + seconds;
+
+timerInterval = setInterval(function(){
+
+timeLeft--;
+
+let m=Math.floor(timeLeft/60);
+let s=timeLeft%60;
+
+if(s<10){s="0"+s;}
+
+document.getElementById("timerInput").value = m + ":" + s;
+
+if(timeLeft <= 0){
+
+alert("Time to claim!");
+
+timeLeft = 3600;
+
+}
+
+},1000);
+
 }
 
 /* logout */
+
 function logout(){
-    localStorage.removeItem("loggedUser");
-    window.location.href="index.html";
+
+localStorage.removeItem("loggedUser");
+
+window.location.href="index.html";
+
 }
 
 /* restaurer statut */
-let status=localStorage.getItem("botStatus");
+
+let status = localStorage.getItem("botStatus");
+
 if(status==="running"){
-    document.getElementById("botStatus").innerText="Bot Status : RUNNING";
-    startTimer();
+
+document.getElementById("botStatus").innerText="Bot Status : RUNNING";
+
+startTimer();
+
 }
 
 </script>
