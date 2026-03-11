@@ -61,6 +61,7 @@ font-weight:bold;
 <body>
 
 <h1>Finoana Dashboard</h1>
+<h3 id="welcomeUser"></h3>
 
 <h2>TronPick Account</h2>
 
@@ -88,6 +89,13 @@ Next Claim In : <input id="timerInput" type="text" value="60:00" style="width:80
 </div>
 
 <script>
+    let userData = JSON.parse(localStorage.getItem("loggedUser"));
+
+if(userData && userData.username){
+document.getElementById("welcomeUser").innerText =
+"Welcome " + userData.username;
+}
+    
     let loggedUser = localStorage.getItem("loggedUser");
 
 if(!loggedUser){
