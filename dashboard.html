@@ -84,9 +84,12 @@ alert("Auto Claim Stopped (demo)");
 }
 
 function logout(){
-window.location.href="index.html";
-}
 
+localStorage.removeItem("loggedUser");
+
+window.location.href="index.html";
+
+}
 </script>
 
 </body>
