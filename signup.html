@@ -1,48 +1,85 @@
 <!DOCTYPE html>
 <html lang="fr">
-
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Créer un compte - Finoana Auto Claim</title>
 
-<!-- Firebase v8 avec defer -->
-<script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js" defer></script>
-<script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-auth.js" defer></script>
-<script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js" defer></script>
+<!-- Firebase v10 moderne -->
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
+import { getAuth, createUserWithEmailAndPassword, updateProfile } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
+import { getDatabase, ref, set, query, orderByChild, equalTo, get } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-database.js";
+
+// Config Firebase
+const firebaseConfig = {
+  apiKey: "AIzaSyAuuM8srnQNvYHJG5vMFfJQq-MwpU2H0Po",
+  authDomain: "finoana-autoclaim.firebaseapp.com",
+  projectId: "finoana-autoclaim",
+  storageBucket: "finoana-autoclaim.firebasestorage.app",
+  messagingSenderId: "873516238295",
+  appId: "1:873516238295:web:ab78797587d0f300173792"
+};
+
+// Initialiser Firebase
+const app = initializeApp(firebaseConfig);
+const auth = getAuth(app);
+const db = getDatabase(app);
+
+window.createAccount = async function() {
+  const name = document.getElementById("name").value.trim();
+  const email = document.getElementById("email").value.trim();
+  const password = document.getElementById("password").value;
+  const confirmPassword = document.getElementById("confirmPassword").value;
+
+  if(!name || !email || !password || !confirmPassword){
+    alert("Veuillez remplir tous les champs.");
+    return;
+  }
+  if(password.length < 6){
+    alert("Le mot de passe doit contenir au moins 6 caractères.");
+    return;
+  }
+  if(password !== confirmPassword){
+    alert("Les mots de passe ne correspondent pas.");
+    return;
+  }
+
+  // Vérifier si le nom existe
+  const usersRef = ref(db, "users");
+  const q = query(usersRef, orderByChild("name"), equalTo(name));
+  const snapshot = await get(q);
+  if(snapshot.exists()){
+    alert("Nom d'utilisateur déjà utilisé !");
+    return;
+  }
+
+  // Créer compte Firebase Auth
+  try {
+    const userCredential = await createUserWithEmailAndPassword(auth, email, password);
+    await updateProfile(userCredential.user, { displayName: name });
+    const uid = userCredential.user.uid;
+    await set(ref(db, 'users/' + uid), { name: name, email: email });
+    alert("Compte créé avec succès !");
+    window.location.href="index.html";
+  } catch(error){
+    alert(error.message);
+  }
+};
+</script>
 
 <style>
-body{
-  font-family:Arial;
-  text-align:center;
-  margin-top:80px;
-  background:#e6f7ff;
-}
+body{ font-family:Arial; text-align:center; margin-top:80px; background:#e6f7ff;}
 h1{ color:#333; }
-input{
-  padding:12px;
-  margin:10px;
-  width:260px;
-  border-radius:5px;
-  border:1px solid #ccc;
-}
-button{
-  padding:12px 25px;
-  background:#28a745;
-  color:white;
-  border:none;
-  border-radius:5px;
-  font-size:16px;
-  cursor:pointer;
-}
+input{ padding:12px; margin:10px; width:260px; border-radius:5px; border:1px solid #ccc;}
+button{ padding:12px 25px; background:#28a745; color:white; border:none; border-radius:5px; font-size:16px; cursor:pointer;}
 button:hover{ background:#218838; }
-a{ text-decoration:none; color:#007bff; font-weight:bold; }
-.footer{ position:fixed; bottom:10px; left:10px; }
+a{text-decoration:none; color:#007bff; font-weight:bold;}
+.footer{ position:fixed; bottom:10px; left:10px;}
 .footer a{ margin-right:15px; }
 </style>
 
 </head>
-
 <body>
 
 <h1>Créer un compte</h1>
@@ -52,7 +89,7 @@ a{ text-decoration:none; color:#007bff; font-weight:bold; }
 <input id="password" type="password" placeholder="Mot de passe"><br>
 <input id="confirmPassword" type="password" placeholder="Confirmer le mot de passe"><br><br>
 
-<button id="signupBtn">S'inscrire</button>
+<button onclick="createAccount()">S'inscrire</button>
 
 <br><br>
 <a href="index.html">Retour à la connexion</a>
@@ -61,71 +98,6 @@ a{ text-decoration:none; color:#007bff; font-weight:bold; }
 <a href="#">FAQ</a>
 <a href="#">Contact</a>
 </div>
-
-<script defer>
-document.addEventListener("DOMContentLoaded", function() {
-
-  const firebaseConfig = {
-    apiKey: "AIzaSyAuuM8srnQNvYHJG5vMFfJQq-MwpU2H0Po",
-    authDomain: "finoana-autoclaim.firebaseapp.com",
-    projectId: "finoana-autoclaim",
-    storageBucket: "finoana-autoclaim.firebasestorage.app",
-    messagingSenderId: "873516238295",
-    appId: "1:873516238295:web:ab78797587d0f300173792"
-  };
-
-  firebase.initializeApp(firebaseConfig);
-  const auth = firebase.auth();
-  const db = firebase.database();
-
-  document.getElementById("signupBtn").addEventListener("click", function() {
-    const name = document.getElementById("name").value.trim();
-    const email = document.getElementById("email").value.trim();
-    const password = document.getElementById("password").value;
-    const confirmPassword = document.getElementById("confirmPassword").value;
-
-    if(!name || !email || !password || !confirmPassword){
-      alert("Veuillez remplir tous les champs.");
-      return;
-    }
-
-    if(password.length < 6){
-      alert("Le mot de passe doit contenir au moins 6 caractères.");
-      return;
-    }
-
-    if(password !== confirmPassword){
-      alert("Les mots de passe ne correspondent pas.");
-      return;
-    }
-
-    // Vérifier si le nom existe déjà dans Realtime Database
-    db.ref("users").orderByChild("name").equalTo(name).once("value", snapshot => {
-      if(snapshot.exists()){
-        alert("Nom d'utilisateur déjà utilisé !");
-        return;
-      }
-
-      // Créer le compte
-      auth.createUserWithEmailAndPassword(email,password)
-        .then(userCredential=>{
-          return userCredential.user.updateProfile({ displayName: name });
-        })
-        .then(()=>{
-          const uid = auth.currentUser.uid;
-          db.ref("users/" + uid).set({ name: name, email: email });
-          alert("Compte créé avec succès !");
-          window.location.href="index.html";
-        })
-        .catch(error=>{
-          alert(error.message);
-        });
-    });
-
-  });
-
-});
-</script>
 
 </body>
 </html>
