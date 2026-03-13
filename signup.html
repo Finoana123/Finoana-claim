@@ -6,7 +6,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Créer un compte - Finoana Auto Claim</title>
 
-<!-- Firebase v8 -->
+<!-- Firebase v8 avec defer -->
 <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js" defer></script>
 <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-auth.js" defer></script>
 <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js" defer></script>
@@ -52,7 +52,7 @@ a{ text-decoration:none; color:#007bff; font-weight:bold; }
 <input id="password" type="password" placeholder="Mot de passe"><br>
 <input id="confirmPassword" type="password" placeholder="Confirmer le mot de passe"><br><br>
 
-<button onclick="createAccount()">S'inscrire</button>
+<button id="signupBtn">S'inscrire</button>
 
 <br><br>
 <a href="index.html">Retour à la connexion</a>
@@ -78,7 +78,7 @@ document.addEventListener("DOMContentLoaded", function() {
   const auth = firebase.auth();
   const db = firebase.database();
 
-  window.createAccount = function() {
+  document.getElementById("signupBtn").addEventListener("click", function() {
     const name = document.getElementById("name").value.trim();
     const email = document.getElementById("email").value.trim();
     const password = document.getElementById("password").value;
@@ -99,7 +99,7 @@ document.addEventListener("DOMContentLoaded", function() {
       return;
     }
 
-    // Vérifier si le nom d'utilisateur existe déjà
+    // Vérifier si le nom existe déjà dans Realtime Database
     db.ref("users").orderByChild("name").equalTo(name).once("value", snapshot => {
       if(snapshot.exists()){
         alert("Nom d'utilisateur déjà utilisé !");
@@ -122,7 +122,7 @@ document.addEventListener("DOMContentLoaded", function() {
         });
     });
 
-  }
+  });
 
 });
 </script>
