@@ -1,75 +1,68 @@
 <!DOCTYPE html>
-<html>
-
+<html lang="fr">
 <head>
-<title>Finoana Claim</title>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Dashboard - Finoana Auto Claim</title>
+
+<!-- Firebase -->
+<script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js"></script>
+
+<script>
+const firebaseConfig = {
+  apiKey: "AIzaSyAuuM8srnQNvYHJG5vMFfJQq-MwpU2H0Po",
+  authDomain: "finoana-autoclaim.firebaseapp.com",
+  projectId: "finoana-autoclaim",
+  storageBucket: "finoana-autoclaim.firebasestorage.app",
+  messagingSenderId: "873516238295",
+  appId: "1:873516238295:web:ab78797587d0f300173792",
+  measurementId: "G-51QDS362WW"
+};
+
+const app = firebase.initializeApp(firebaseConfig);
+const auth = firebase.auth();
+const db = firebase.firestore();
+</script>
 
 <style>
-
-body{
-font-family: Arial;
-text-align:center;
-margin-top:120px;
-background:#f2f2f2;
-}
-
-input{
-padding:10px;
-margin:5px;
-width:220px;
-}
-
-button{
-padding:10px 20px;
-margin:5px;
-border:none;
-border-radius:5px;
-font-size:16px;
-cursor:pointer;
-}
-
-.login{
-background:green;
-color:white;
-}
-
-.signup{
-background:orange;
-color:white;
-}
-
-.footer{
-position:fixed;
-bottom:10px;
-left:10px;
-}
-
-.footer a{
-color:blue;
-margin-right:15px;
-text-decoration:none;
-font-weight:bold;
-}
-
+body{font-family:Arial,sans-serif;text-align:center;margin-top:60px;background:#e6f7ff;}
+h1,h2,h3{color:#333;}
+input{padding:10px;margin:5px;width:220px;border-radius:5px;border:1px solid #ccc;}
+button{padding:12px 25px;margin:10px;border:none;border-radius:5px;font-size:16px;cursor:pointer;transition:0.3s;}
+.start{background:#28a745;color:white;} .start:hover{background:#218838;}
+.stop{background:#dc3545;color:white;} .stop:hover{background:#c82333;}
+.claim{background:#fd7e14;color:white;} .claim:hover{background:#e36a00;}
+.logout{background:gray;color:white;} .logout:hover{background:#5a5a5a;}
+.footer{position:fixed;bottom:10px;left:10px;}
+.footer a{color:blue;margin-right:15px;text-decoration:none;font-weight:bold;}
 </style>
-
 </head>
 
 <body>
 
-<h1>Finoana Auto Claim</h1>
+<h1>Finoana Dashboard</h1>
+<h3 id="welcomeUser"></h3>
 
-<input id="email" placeholder="Email">
-
-<br>
-
-<input id="password" type="password" placeholder="Password">
+<h2>TronPick Account</h2>
+<input id="tronUser" placeholder="TronPick Username"><br>
+<input id="tronPass" type="password" placeholder="TronPick Password"><br><br>
+<button onclick="saveTron()">Sauvegarder le compte</button>
 
 <br><br>
 
-<button class="login" onclick="login()">Login</button>
+<h2>Auto Claim Bot</h2>
+<p id="botStatus">Bot Status : OFF</p>
+Next Claim In: 
+<input id="timerInput" type="text" value="60:00" style="width:80px;text-align:center;"><br>
 
-<button class="signup" onclick="window.location.href='signup.html'">Sign up</button>
+<button class="start" onclick="startBot()">Start Auto Claim</button>
+<button class="stop" onclick="stopBot()">Stop</button>
+<button class="claim" onclick="claimNow()">Claim Now</button>
+
+<br>
+<button class="logout" onclick="logout()">Logout</button>
 
 <div class="footer">
 <a href="#">FAQ</a>
@@ -77,47 +70,113 @@ font-weight:bold;
 </div>
 
 <script>
-function login(){
+let timeLeft = 3600;
+let timerInterval;
+let balance = 0;
+let botRunning = false;
 
-let email=document.getElementById("email").value.trim();
-let password=document.getElementById("password").value;
+// --- Vérifier utilisateur connecté ---
+auth.onAuthStateChanged(user => {
+  if(user){
+    document.getElementById("welcomeUser").innerText = "Bienvenue " + (user.displayName || "Utilisateur");
+    db.collection("users").doc(user.uid).get().then(doc=>{
+      if(doc.exists){
+        const data = doc.data();
+        if(data.tronUser) document.getElementById("tronUser").value = data.tronUser;
+        if(data.tronPass) document.getElementById("tronPass").value = data.tronPass;
+        if(data.balance) balance = data.balance;
+        if(data.botRunning){
+          botRunning = true;
+          document.getElementById("botStatus").innerText="Bot Status : RUNNING";
+          startTimer();
+        }
+      }
+    });
+  } else { window.location.href="index.html"; }
+});
 
-let users=JSON.parse(localStorage.getItem("users")) || [];
+// --- Sauvegarder compte TronPick ---
+function saveTron(){
+  const user = auth.currentUser;
+  if(!user) { alert("Non connecté"); return; }
 
-let foundUser=null;
+  const tronUser = document.getElementById("tronUser").value.trim();
+  const tronPass = document.getElementById("tronPass").value.trim();
+  if(!tronUser || !tronPass){ alert("Veuillez entrer votre compte TronPick"); return; }
 
-for(let i=0;i<users.length;i++){
-
-if(users[i].email===email && users[i].password===password){
-foundUser=users[i];
-break;
+  db.collection("users").doc(user.uid).set({
+    tronUser, tronPass, balance, botRunning
+  }, {merge:true})
+  .then(()=> alert("Compte TronPick sauvegardé sur le cloud"));
 }
 
+// --- AutoClaim ---
+function autoClaim(){
+  const user = auth.currentUser;
+  if(!user) { alert("Non connecté"); return; }
+
+  const tronUser = document.getElementById("tronUser").value.trim();
+  const tronPass = document.getElementById("tronPass").value.trim();
+  if(!tronUser || !tronPass){ alert("Veuillez sauvegarder votre compte TronPick d'abord"); return; }
+
+  balance += 0.01; // simulate claim
+  document.getElementById("botStatus").innerText = "Claim effectué ! Solde: " + balance.toFixed(4) + " TRX";
+
+  db.collection("users").doc(user.uid).set({balance}, {merge:true});
+  timeLeft = 3600;
 }
 
-if(foundUser){
+// --- Claim manuel ---
+function claimNow(){ autoClaim(); }
 
-/* créer session */
-localStorage.setItem("loggedUser",JSON.stringify(foundUser));
-
-window.location.href="dashboard.html";
-
-}else{
-
-alert("Invalid email or password");
-
+// --- Start Bot ---
+function startBot(){
+  botRunning = true;
+  document.getElementById("botStatus").innerText="Bot Status : RUNNING";
+  saveBotStatus();
+  startTimer();
 }
 
+// --- Stop Bot ---
+function stopBot(){
+  botRunning = false;
+  document.getElementById("botStatus").innerText="Bot Status : OFF";
+  clearInterval(timerInterval);
+  saveBotStatus();
 }
 
+// --- Timer ---
+function startTimer(){
+  clearInterval(timerInterval);
+  let timerValue = document.getElementById("timerInput").value;
+  let parts = timerValue.split(":");
+  let minutes = parseInt(parts[0]);
+  let seconds = parseInt(parts[1]);
+  if(isNaN(minutes)||isNaN(seconds)){ alert("Format de timer invalide mm:ss"); return; }
+  timeLeft = minutes*60 + seconds;
 
-
-function signup(){
-alert("Sign up page coming soon");
+  timerInterval = setInterval(()=>{
+    timeLeft--;
+    let m = Math.floor(timeLeft/60);
+    let s = timeLeft%60;
+    if(s<10) s="0"+s;
+    document.getElementById("timerInput").value = m + ":" + s;
+    if(timeLeft<=0) autoClaim();
+  },1000);
 }
 
+// --- Sauvegarder statut bot ---
+function saveBotStatus(){
+  const user = auth.currentUser;
+  if(user) db.collection("users").doc(user.uid).set({botRunning}, {merge:true});
+}
+
+// --- Logout ---
+function logout(){
+  const user = auth.currentUser;
+  if(user) auth.signOut().then(()=> window.location.href="index.html");
+}
 </script>
 
 </body>
-
 </html>
