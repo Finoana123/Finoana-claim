@@ -1,182 +1,141 @@
 <!DOCTYPE html>
 <html lang="fr">
+
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Dashboard - Finoana Auto Claim</title>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Finoana Auto Claim</title>
 
-<!-- Firebase -->
-<script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js"></script>
-<script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js"></script>
-<script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js"></script>
+  <!-- Firebase -->
+  <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js"></script>
 
-<script>
-const firebaseConfig = {
-  apiKey: "AIzaSyAuuM8srnQNvYHJG5vMFfJQq-MwpU2H0Po",
-  authDomain: "finoana-autoclaim.firebaseapp.com",
-  projectId: "finoana-autoclaim",
-  storageBucket: "finoana-autoclaim.firebasestorage.app",
-  messagingSenderId: "873516238295",
-  appId: "1:873516238295:web:ab78797587d0f300173792",
-  measurementId: "G-51QDS362WW"
-};
+  <script>
+    // Configuration Firebase
+    const firebaseConfig = {
+      apiKey: "AIzaSyAuuM8srnQNvYHJG5vMFfJQq-MwpU2H0Po",
+      authDomain: "finoana-autoclaim.firebaseapp.com",
+      projectId: "finoana-autoclaim",
+      storageBucket: "finoana-autoclaim.firebasestorage.app",
+      messagingSenderId: "873516238295",
+      appId: "1:873516238295:web:ab78797587d0f300173792",
+      measurementId: "G-51QDS362WW"
+    };
 
-const app = firebase.initializeApp(firebaseConfig);
-const auth = firebase.auth();
-const db = firebase.firestore();
-</script>
+    // Initialiser Firebase
+    const app = firebase.initializeApp(firebaseConfig);
+    const auth = firebase.auth();
+  </script>
 
-<style>
-body{font-family:Arial,sans-serif;text-align:center;margin-top:60px;background:#e6f7ff;}
-h1,h2,h3{color:#333;}
-input{padding:10px;margin:5px;width:220px;border-radius:5px;border:1px solid #ccc;}
-button{padding:12px 25px;margin:10px;border:none;border-radius:5px;font-size:16px;cursor:pointer;transition:0.3s;}
-.start{background:#28a745;color:white;} .start:hover{background:#218838;}
-.stop{background:#dc3545;color:white;} .stop:hover{background:#c82333;}
-.claim{background:#fd7e14;color:white;} .claim:hover{background:#e36a00;}
-.logout{background:gray;color:white;} .logout:hover{background:#5a5a5a;}
-.footer{position:fixed;bottom:10px;left:10px;}
-.footer a{color:blue;margin-right:15px;text-decoration:none;font-weight:bold;}
-</style>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      text-align: center;
+      margin-top: 80px;
+      background: #e6f7ff;
+    }
+
+    h1 {
+      color: #333;
+    }
+
+    p {
+      color: #555;
+      font-size: 16px;
+    }
+
+    input {
+      padding: 12px;
+      margin: 10px 0;
+      width: 260px;
+      border-radius: 5px;
+      border: 1px solid #ccc;
+      font-size: 14px;
+    }
+
+    button {
+      padding: 12px 25px;
+      margin: 10px 5px;
+      border: none;
+      border-radius: 5px;
+      font-size: 16px;
+      cursor: pointer;
+      transition: all 0.3s ease;
+    }
+
+    .login {
+      background: #28a745;
+      color: white;
+    }
+
+    .login:hover {
+      background: #218838;
+    }
+
+    .signup {
+      background: #fd7e14;
+      color: white;
+    }
+
+    .signup:hover {
+      background: #e36a00;
+    }
+
+    .footer {
+      position: fixed;
+      bottom: 10px;
+      left: 10px;
+    }
+
+    .footer a {
+      color: blue;
+      margin-right: 15px;
+      text-decoration: none;
+      font-weight: bold;
+    }
+  </style>
 </head>
 
 <body>
 
-<h1>Finoana Dashboard</h1>
-<h3 id="welcomeUser"></h3>
+  <h1>Finoana Auto Claim</h1>
+  <p>Bienvenue sur <b>Finoana Auto Claim</b> ! Connectez-vous pour commencer à gagner vos TRX automatiquement.</p>
 
-<h2>TronPick Account</h2>
-<input id="tronUser" placeholder="TronPick Username"><br>
-<input id="tronPass" type="password" placeholder="TronPick Password"><br><br>
-<button onclick="saveTron()">Sauvegarder le compte</button>
+  <input id="email" type="email" placeholder="Email"><br>
+  <input id="password" type="password" placeholder="Mot de passe"><br><br>
 
-<br><br>
+  <button class="login" onclick="login()">Se connecter</button>
+  <button class="signup" onclick="signup()">Créer un compte</button>
 
-<h2>Auto Claim Bot</h2>
-<p id="botStatus">Bot Status : OFF</p>
-Next Claim In: 
-<input id="timerInput" type="text" value="60:00" style="width:80px;text-align:center;"><br>
+  <div class="footer">
+    <a href="#">FAQ</a>
+    <a href="#">Contact</a>
+  </div>
 
-<button class="start" onclick="startBot()">Start Auto Claim</button>
-<button class="stop" onclick="stopBot()">Stop</button>
-<button class="claim" onclick="claimNow()">Claim Now</button>
+  <script>
+    function login() {
+      const email = document.getElementById("email").value.trim();
+      const password = document.getElementById("password").value;
 
-<br>
-<button class="logout" onclick="logout()">Logout</button>
-
-<div class="footer">
-<a href="#">FAQ</a>
-<a href="#">Contact</a>
-</div>
-
-<script>
-let timeLeft = 3600;
-let timerInterval;
-let balance = 0;
-let botRunning = false;
-
-// --- Vérifier utilisateur connecté ---
-auth.onAuthStateChanged(user => {
-  if(user){
-    document.getElementById("welcomeUser").innerText = "Bienvenue " + (user.displayName || "Utilisateur");
-    db.collection("users").doc(user.uid).get().then(doc=>{
-      if(doc.exists){
-        const data = doc.data();
-        if(data.tronUser) document.getElementById("tronUser").value = data.tronUser;
-        if(data.tronPass) document.getElementById("tronPass").value = data.tronPass;
-        if(data.balance) balance = data.balance;
-        if(data.botRunning){
-          botRunning = true;
-          document.getElementById("botStatus").innerText="Bot Status : RUNNING";
-          startTimer();
-        }
+      if (!email || !password) {
+        alert("Veuillez entrer votre email et mot de passe.");
+        return;
       }
-    });
-  } else { window.location.href="index.html"; }
-});
 
-// --- Sauvegarder compte TronPick ---
-function saveTron(){
-  const user = auth.currentUser;
-  if(!user) { alert("Non connecté"); return; }
+      auth.signInWithEmailAndPassword(email, password)
+        .then((userCredential) => {
+          // Login réussi
+          window.location.href = "dashboard.html";
+        })
+        .catch((error) => {
+          alert(error.message);
+        });
+    }
 
-  const tronUser = document.getElementById("tronUser").value.trim();
-  const tronPass = document.getElementById("tronPass").value.trim();
-  if(!tronUser || !tronPass){ alert("Veuillez entrer votre compte TronPick"); return; }
-
-  db.collection("users").doc(user.uid).set({
-    tronUser, tronPass, balance, botRunning
-  }, {merge:true})
-  .then(()=> alert("Compte TronPick sauvegardé sur le cloud"));
-}
-
-// --- AutoClaim ---
-function autoClaim(){
-  const user = auth.currentUser;
-  if(!user) { alert("Non connecté"); return; }
-
-  const tronUser = document.getElementById("tronUser").value.trim();
-  const tronPass = document.getElementById("tronPass").value.trim();
-  if(!tronUser || !tronPass){ alert("Veuillez sauvegarder votre compte TronPick d'abord"); return; }
-
-  balance += 0.01; // simulate claim
-  document.getElementById("botStatus").innerText = "Claim effectué ! Solde: " + balance.toFixed(4) + " TRX";
-
-  db.collection("users").doc(user.uid).set({balance}, {merge:true});
-  timeLeft = 3600;
-}
-
-// --- Claim manuel ---
-function claimNow(){ autoClaim(); }
-
-// --- Start Bot ---
-function startBot(){
-  botRunning = true;
-  document.getElementById("botStatus").innerText="Bot Status : RUNNING";
-  saveBotStatus();
-  startTimer();
-}
-
-// --- Stop Bot ---
-function stopBot(){
-  botRunning = false;
-  document.getElementById("botStatus").innerText="Bot Status : OFF";
-  clearInterval(timerInterval);
-  saveBotStatus();
-}
-
-// --- Timer ---
-function startTimer(){
-  clearInterval(timerInterval);
-  let timerValue = document.getElementById("timerInput").value;
-  let parts = timerValue.split(":");
-  let minutes = parseInt(parts[0]);
-  let seconds = parseInt(parts[1]);
-  if(isNaN(minutes)||isNaN(seconds)){ alert("Format de timer invalide mm:ss"); return; }
-  timeLeft = minutes*60 + seconds;
-
-  timerInterval = setInterval(()=>{
-    timeLeft--;
-    let m = Math.floor(timeLeft/60);
-    let s = timeLeft%60;
-    if(s<10) s="0"+s;
-    document.getElementById("timerInput").value = m + ":" + s;
-    if(timeLeft<=0) autoClaim();
-  },1000);
-}
-
-// --- Sauvegarder statut bot ---
-function saveBotStatus(){
-  const user = auth.currentUser;
-  if(user) db.collection("users").doc(user.uid).set({botRunning}, {merge:true});
-}
-
-// --- Logout ---
-function logout(){
-  const user = auth.currentUser;
-  if(user) auth.signOut().then(()=> window.location.href="index.html");
-}
-</script>
+    function signup() {
+      window.location.href = "signup.html";
+    }
+  </script>
 
 </body>
 </html>
