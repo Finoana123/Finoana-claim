@@ -1,14 +1,14 @@
 <!DOCTYPE html>
 <html lang="fr">
-
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Créer un compte - Finoana Auto Claim</title>
 
-<!-- Firebase v8 -->
-<script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
-<script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-auth.js"></script>
+<!-- Firebase v9 CDN classique -->
+<script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-database-compat.js"></script>
 
 <script>
 const firebaseConfig = {
@@ -20,41 +20,69 @@ const firebaseConfig = {
   appId: "1:873516238295:web:ab78797587d0f300173792"
 };
 
+// Initialiser Firebase
 firebase.initializeApp(firebaseConfig);
+const auth = firebase.auth();
+const db = firebase.database();
+
+window.createAccount = function() {
+  const name = document.getElementById("name").value.trim();
+  const email = document.getElementById("email").value.trim();
+  const password = document.getElementById("password").value;
+  const confirmPassword = document.getElementById("confirmPassword").value;
+
+  if(!name || !email || !password || !confirmPassword){
+    alert("Veuillez remplir tous les champs.");
+    return;
+  }
+
+  if(password.length < 6){
+    alert("Le mot de passe doit contenir au moins 6 caractères.");
+    return;
+  }
+
+  if(password !== confirmPassword){
+    alert("Les mots de passe ne correspondent pas.");
+    return;
+  }
+
+  // Vérifier si le nom existe déjà
+  db.ref("users").orderByChild("name").equalTo(name).once("value", snapshot=>{
+    if(snapshot.exists()){
+      alert("Nom d'utilisateur déjà utilisé !");
+      return;
+    }
+
+    // Créer le compte Firebase Auth
+    auth.createUserWithEmailAndPassword(email,password)
+      .then(userCredential=>{
+        const user = userCredential.user;
+        user.updateProfile({ displayName: name }).then(()=>{
+          // Sauvegarder dans la Realtime Database
+          db.ref("users/" + user.uid).set({ name: name, email: email });
+          alert("Compte créé avec succès !");
+          window.location.href="index.html";
+        });
+      })
+      .catch(error=>{
+        alert(error.message);
+      });
+  });
+};
 </script>
 
 <style>
-body{
-  font-family:Arial;
-  text-align:center;
-  margin-top:80px;
-  background:#e6f7ff;
-}
+body{ font-family:Arial; text-align:center; margin-top:80px; background:#e6f7ff;}
 h1{ color:#333; }
-input{
-  padding:12px;
-  margin:10px;
-  width:260px;
-  border-radius:5px;
-  border:1px solid #ccc;
-}
-button{
-  padding:12px 25px;
-  background:#28a745;
-  color:white;
-  border:none;
-  border-radius:5px;
-  font-size:16px;
-  cursor:pointer;
-}
+input{ padding:12px; margin:10px; width:260px; border-radius:5px; border:1px solid #ccc;}
+button{ padding:12px 25px; background:#28a745; color:white; border:none; border-radius:5px; font-size:16px; cursor:pointer;}
 button:hover{ background:#218838; }
-a{ text-decoration:none; color:#007bff; font-weight:bold; }
-.footer{ position:fixed; bottom:10px; left:10px; }
+a{text-decoration:none; color:#007bff; font-weight:bold;}
+.footer{ position:fixed; bottom:10px; left:10px;}
 .footer a{ margin-right:15px; }
 </style>
 
 </head>
-
 <body>
 
 <h1>Créer un compte</h1>
@@ -65,7 +93,6 @@ a{ text-decoration:none; color:#007bff; font-weight:bold; }
 <input id="confirmPassword" type="password" placeholder="Confirmer le mot de passe"><br><br>
 
 <button onclick="createAccount()">S'inscrire</button>
-
 <br><br>
 <a href="index.html">Retour à la connexion</a>
 
@@ -73,48 +100,6 @@ a{ text-decoration:none; color:#007bff; font-weight:bold; }
 <a href="#">FAQ</a>
 <a href="#">Contact</a>
 </div>
-
-<script>
-window.onload = function(){
-
-  const auth = firebase.auth();
-
-  window.createAccount = function(){
-    const name = document.getElementById("name").value.trim();
-    const email = document.getElementById("email").value.trim();
-    const password = document.getElementById("password").value;
-    const confirmPassword = document.getElementById("confirmPassword").value;
-
-    if(!name || !email || !password || !confirmPassword){
-      alert("Veuillez remplir tous les champs.");
-      return;
-    }
-
-    if(password.length < 6){
-      alert("Le mot de passe doit contenir au moins 6 caractères.");
-      return;
-    }
-
-    if(password !== confirmPassword){
-      alert("Les mots de passe ne correspondent pas.");
-      return;
-    }
-
-    auth.createUserWithEmailAndPassword(email,password)
-      .then((userCredential)=>{
-        return userCredential.user.updateProfile({ displayName: name });
-      })
-      .then(()=>{
-        alert("Compte créé avec succès !");
-        window.location.href="index.html";
-      })
-      .catch((error)=>{
-        alert(error.message);
-      });
-  }
-
-};
-</script>
 
 </body>
 </html>
