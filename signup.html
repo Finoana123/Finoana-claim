@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Créer un compte - Finoana Auto Claim</title>
 
-<!-- Firebase v9 CDN classique -->
+<!-- Firebase v9+ compat (CDN classique, fonctionne sur Chrome) -->
 <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-database-compat.js"></script>
@@ -20,12 +20,11 @@ const firebaseConfig = {
   appId: "1:873516238295:web:ab78797587d0f300173792"
 };
 
-// Initialiser Firebase
 firebase.initializeApp(firebaseConfig);
 const auth = firebase.auth();
 const db = firebase.database();
 
-window.createAccount = function() {
+function createAccount() {
   const name = document.getElementById("name").value.trim();
   const email = document.getElementById("email").value.trim();
   const password = document.getElementById("password").value;
@@ -47,7 +46,7 @@ window.createAccount = function() {
   }
 
   // Vérifier si le nom existe déjà
-  db.ref("users").orderByChild("name").equalTo(name).once("value", snapshot=>{
+  db.ref("users").orderByChild("name").equalTo(name).once("value", snapshot => {
     if(snapshot.exists()){
       alert("Nom d'utilisateur déjà utilisé !");
       return;
@@ -55,20 +54,18 @@ window.createAccount = function() {
 
     // Créer le compte Firebase Auth
     auth.createUserWithEmailAndPassword(email,password)
-      .then(userCredential=>{
+      .then(userCredential => {
         const user = userCredential.user;
-        user.updateProfile({ displayName: name }).then(()=>{
+        return user.updateProfile({ displayName: name }).then(() => {
           // Sauvegarder dans la Realtime Database
           db.ref("users/" + user.uid).set({ name: name, email: email });
           alert("Compte créé avec succès !");
-          window.location.href="index.html";
+          window.location.href = "index.html";
         });
       })
-      .catch(error=>{
-        alert(error.message);
-      });
+      .catch(error => alert(error.message));
   });
-};
+}
 </script>
 
 <style>
