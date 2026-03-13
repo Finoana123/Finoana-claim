@@ -7,21 +7,9 @@
 <title>Créer un compte - Finoana Auto Claim</title>
 
 <!-- Firebase v8 -->
-<script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
-<script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-auth.js"></script>
-
-<script>
-const firebaseConfig = {
-  apiKey: "AIzaSyAuuM8srnQNvYHJG5vMFfJQq-MwpU2H0Po",
-  authDomain: "finoana-autoclaim.firebaseapp.com",
-  projectId: "finoana-autoclaim",
-  storageBucket: "finoana-autoclaim.firebasestorage.app",
-  messagingSenderId: "873516238295",
-  appId: "1:873516238295:web:ab78797587d0f300173792"
-};
-
-firebase.initializeApp(firebaseConfig);
-</script>
+<script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js" defer></script>
+<script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-auth.js" defer></script>
+<script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js" defer></script>
 
 <style>
 body{
@@ -74,12 +62,23 @@ a{ text-decoration:none; color:#007bff; font-weight:bold; }
 <a href="#">Contact</a>
 </div>
 
-<script>
-window.onload = function(){
+<script defer>
+document.addEventListener("DOMContentLoaded", function() {
 
+  const firebaseConfig = {
+    apiKey: "AIzaSyAuuM8srnQNvYHJG5vMFfJQq-MwpU2H0Po",
+    authDomain: "finoana-autoclaim.firebaseapp.com",
+    projectId: "finoana-autoclaim",
+    storageBucket: "finoana-autoclaim.firebasestorage.app",
+    messagingSenderId: "873516238295",
+    appId: "1:873516238295:web:ab78797587d0f300173792"
+  };
+
+  firebase.initializeApp(firebaseConfig);
   const auth = firebase.auth();
+  const db = firebase.database();
 
-  window.createAccount = function(){
+  window.createAccount = function() {
     const name = document.getElementById("name").value.trim();
     const email = document.getElementById("email").value.trim();
     const password = document.getElementById("password").value;
@@ -100,20 +99,32 @@ window.onload = function(){
       return;
     }
 
-    auth.createUserWithEmailAndPassword(email,password)
-      .then((userCredential)=>{
-        return userCredential.user.updateProfile({ displayName: name });
-      })
-      .then(()=>{
-        alert("Compte créé avec succès !");
-        window.location.href="index.html";
-      })
-      .catch((error)=>{
-        alert(error.message);
-      });
+    // Vérifier si le nom d'utilisateur existe déjà
+    db.ref("users").orderByChild("name").equalTo(name).once("value", snapshot => {
+      if(snapshot.exists()){
+        alert("Nom d'utilisateur déjà utilisé !");
+        return;
+      }
+
+      // Créer le compte
+      auth.createUserWithEmailAndPassword(email,password)
+        .then(userCredential=>{
+          return userCredential.user.updateProfile({ displayName: name });
+        })
+        .then(()=>{
+          const uid = auth.currentUser.uid;
+          db.ref("users/" + uid).set({ name: name, email: email });
+          alert("Compte créé avec succès !");
+          window.location.href="index.html";
+        })
+        .catch(error=>{
+          alert(error.message);
+        });
+    });
+
   }
 
-};
+});
 </script>
 
 </body>
