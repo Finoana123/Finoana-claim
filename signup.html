@@ -6,12 +6,11 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Créer un compte - Finoana Auto Claim</title>
 
-<!-- Firebase -->
+<!-- Firebase v8 -->
 <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
 <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-auth.js"></script>
 
 <script>
-
 const firebaseConfig = {
   apiKey: "AIzaSyAuuM8srnQNvYHJG5vMFfJQq-MwpU2H0Po",
   authDomain: "finoana-autoclaim.firebaseapp.com",
@@ -22,61 +21,36 @@ const firebaseConfig = {
 };
 
 firebase.initializeApp(firebaseConfig);
-const auth = firebase.auth();
-
 </script>
 
 <style>
-
 body{
-font-family:Arial;
-text-align:center;
-margin-top:80px;
-background:#e6f7ff;
+  font-family:Arial;
+  text-align:center;
+  margin-top:80px;
+  background:#e6f7ff;
 }
-
-h1{
-color:#333;
-}
-
+h1{ color:#333; }
 input{
-padding:12px;
-margin:10px;
-width:260px;
-border-radius:5px;
-border:1px solid #ccc;
+  padding:12px;
+  margin:10px;
+  width:260px;
+  border-radius:5px;
+  border:1px solid #ccc;
 }
-
 button{
-padding:12px 25px;
-background:#28a745;
-color:white;
-border:none;
-border-radius:5px;
-font-size:16px;
-cursor:pointer;
+  padding:12px 25px;
+  background:#28a745;
+  color:white;
+  border:none;
+  border-radius:5px;
+  font-size:16px;
+  cursor:pointer;
 }
-
-button:hover{
-background:#218838;
-}
-
-a{
-text-decoration:none;
-color:#007bff;
-font-weight:bold;
-}
-
-.footer{
-position:fixed;
-bottom:10px;
-left:10px;
-}
-
-.footer a{
-margin-right:15px;
-}
-
+button:hover{ background:#218838; }
+a{ text-decoration:none; color:#007bff; font-weight:bold; }
+.footer{ position:fixed; bottom:10px; left:10px; }
+.footer a{ margin-right:15px; }
 </style>
 
 </head>
@@ -93,7 +67,6 @@ margin-right:15px;
 <button onclick="createAccount()">S'inscrire</button>
 
 <br><br>
-
 <a href="index.html">Retour à la connexion</a>
 
 <div class="footer">
@@ -102,56 +75,46 @@ margin-right:15px;
 </div>
 
 <script>
+window.onload = function(){
 
-function createAccount(){
+  const auth = firebase.auth();
 
-const name=document.getElementById("name").value.trim();
-const email=document.getElementById("email").value.trim();
-const password=document.getElementById("password").value;
-const confirmPassword=document.getElementById("confirmPassword").value;
+  window.createAccount = function(){
+    const name = document.getElementById("name").value.trim();
+    const email = document.getElementById("email").value.trim();
+    const password = document.getElementById("password").value;
+    const confirmPassword = document.getElementById("confirmPassword").value;
 
-if(!name || !email || !password || !confirmPassword){
-alert("Veuillez remplir tous les champs");
-return;
-}
+    if(!name || !email || !password || !confirmPassword){
+      alert("Veuillez remplir tous les champs.");
+      return;
+    }
 
-if(password.length < 6){
-alert("Le mot de passe doit contenir au moins 6 caractères");
-return;
-}
+    if(password.length < 6){
+      alert("Le mot de passe doit contenir au moins 6 caractères.");
+      return;
+    }
 
-if(password !== confirmPassword){
-alert("Les mots de passe ne correspondent pas");
-return;
-}
+    if(password !== confirmPassword){
+      alert("Les mots de passe ne correspondent pas.");
+      return;
+    }
 
-auth.createUserWithEmailAndPassword(email,password)
+    auth.createUserWithEmailAndPassword(email,password)
+      .then((userCredential)=>{
+        return userCredential.user.updateProfile({ displayName: name });
+      })
+      .then(()=>{
+        alert("Compte créé avec succès !");
+        window.location.href="index.html";
+      })
+      .catch((error)=>{
+        alert(error.message);
+      });
+  }
 
-.then((userCredential)=>{
-
-return userCredential.user.updateProfile({
-displayName:name
-});
-
-})
-
-.then(()=>{
-
-alert("Compte créé avec succès");
-window.location.href="index.html";
-
-})
-
-.catch((error)=>{
-
-alert(error.message);
-
-});
-
-}
-
+};
 </script>
 
 </body>
-
 </html>
