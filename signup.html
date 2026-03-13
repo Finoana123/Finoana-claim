@@ -9,6 +9,7 @@
 <!-- Firebase v8 -->
 <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
 <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-auth.js"></script>
+<script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
 
 <script>
 const firebaseConfig = {
@@ -78,6 +79,7 @@ a{ text-decoration:none; color:#007bff; font-weight:bold; }
 window.onload = function(){
 
   const auth = firebase.auth();
+  const db = firebase.database();
 
   window.createAccount = function(){
     const name = document.getElementById("name").value.trim();
@@ -100,20 +102,33 @@ window.onload = function(){
       return;
     }
 
-    auth.createUserWithEmailAndPassword(email,password)
-      .then((userCredential)=>{
-        return userCredential.user.updateProfile({ displayName: name });
-      })
-      .then(()=>{
-        alert("Compte créé avec succès !");
-        window.location.href="index.html";
-      })
-      .catch((error)=>{
-        alert(error.message);
-      });
+    // Vérifier si le nom existe déjà dans Realtime Database
+    db.ref("users").orderByChild("name").equalTo(name).once("value", snapshot=>{
+      if(snapshot.exists()){
+        alert("Nom d'utilisateur déjà utilisé !");
+        return;
+      } else {
+        // Créer le compte Firebase Auth
+        auth.createUserWithEmailAndPassword(email,password)
+        .then(userCredential=>{
+          return userCredential.user.updateProfile({ displayName: name });
+        })
+        .then(()=>{
+          // Sauvegarder dans la Database
+          const uid = auth.currentUser.uid;
+          db.ref("users/" + uid).set({ name: name, email: email });
+          alert("Compte créé avec succès !");
+          window.location.href="index.html";
+        })
+        .catch(error=>{
+          alert(error.message);
+        });
+      }
+    });
+
   }
 
-};
+}
 </script>
 
 </body>
