@@ -6,76 +6,21 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Créer un compte - Finoana Auto Claim</title>
 
-<!-- Firebase v8 avec defer -->
-<script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js" defer></script>
-<script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-auth.js" defer></script>
-<script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js" defer></script>
+<!-- Firebase v8 -->
+<script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+<script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-auth.js"></script>
 
-<script defer>
-document.addEventListener("DOMContentLoaded", function() {
+<script>
+const firebaseConfig = {
+  apiKey: "AIzaSyAuuM8srnQNvYHJG5vMFfJQq-MwpU2H0Po",
+  authDomain: "finoana-autoclaim.firebaseapp.com",
+  projectId: "finoana-autoclaim",
+  storageBucket: "finoana-autoclaim.firebasestorage.app",
+  messagingSenderId: "873516238295",
+  appId: "1:873516238295:web:ab78797587d0f300173792"
+};
 
-  const firebaseConfig = {
-    apiKey: "AIzaSyAuuM8srnQNvYHJG5vMFfJQq-MwpU2H0Po",
-    authDomain: "finoana-autoclaim.firebaseapp.com",
-    projectId: "finoana-autoclaim",
-    storageBucket: "finoana-autoclaim.firebasestorage.app",
-    messagingSenderId: "873516238295",
-    appId: "1:873516238295:web:ab78797587d0f300173792"
-  };
-
-  // Initialiser Firebase
-  firebase.initializeApp(firebaseConfig);
-  const auth = firebase.auth();
-  const db = firebase.database();
-
-  window.createAccount = function() {
-    const name = document.getElementById("name").value.trim();
-    const email = document.getElementById("email").value.trim();
-    const password = document.getElementById("password").value;
-    const confirmPassword = document.getElementById("confirmPassword").value;
-
-    if(!name || !email || !password || !confirmPassword){
-      alert("Veuillez remplir tous les champs.");
-      return;
-    }
-
-    if(password.length < 6){
-      alert("Le mot de passe doit contenir au moins 6 caractères.");
-      return;
-    }
-
-    if(password !== confirmPassword){
-      alert("Les mots de passe ne correspondent pas.");
-      return;
-    }
-
-    // Vérifier si le nom existe déjà dans Realtime Database
-    db.ref("users").orderByChild("name").equalTo(name).once("value", snapshot => {
-      if(snapshot.exists()){
-        alert("Nom d'utilisateur déjà utilisé !");
-        return;
-      }
-
-      // Créer le compte Firebase Auth
-      auth.createUserWithEmailAndPassword(email, password)
-        .then(userCredential => {
-          return userCredential.user.updateProfile({ displayName: name });
-        })
-        .then(() => {
-          // Sauvegarder dans Realtime Database
-          const uid = auth.currentUser.uid;
-          db.ref("users/" + uid).set({ name: name, email: email });
-          alert("Compte créé avec succès !");
-          window.location.href = "index.html";
-        })
-        .catch(error => {
-          alert(error.message);
-        });
-    });
-
-  }
-
-});
+firebase.initializeApp(firebaseConfig);
 </script>
 
 <style>
@@ -128,6 +73,48 @@ a{ text-decoration:none; color:#007bff; font-weight:bold; }
 <a href="#">FAQ</a>
 <a href="#">Contact</a>
 </div>
+
+<script>
+window.onload = function(){
+
+  const auth = firebase.auth();
+
+  window.createAccount = function(){
+    const name = document.getElementById("name").value.trim();
+    const email = document.getElementById("email").value.trim();
+    const password = document.getElementById("password").value;
+    const confirmPassword = document.getElementById("confirmPassword").value;
+
+    if(!name || !email || !password || !confirmPassword){
+      alert("Veuillez remplir tous les champs.");
+      return;
+    }
+
+    if(password.length < 6){
+      alert("Le mot de passe doit contenir au moins 6 caractères.");
+      return;
+    }
+
+    if(password !== confirmPassword){
+      alert("Les mots de passe ne correspondent pas.");
+      return;
+    }
+
+    auth.createUserWithEmailAndPassword(email,password)
+      .then((userCredential)=>{
+        return userCredential.user.updateProfile({ displayName: name });
+      })
+      .then(()=>{
+        alert("Compte créé avec succès !");
+        window.location.href="index.html";
+      })
+      .catch((error)=>{
+        alert(error.message);
+      });
+  }
+
+};
+</script>
 
 </body>
 </html>
