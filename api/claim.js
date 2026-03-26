@@ -9,21 +9,24 @@ export default async function handler(req, res) {
       });
     }
 
+    // 🔥 Headers comme un vrai navigateur
     const headers = {
-      "User-Agent": "Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 Chrome/116 Mobile Safari/537.36",
+      "User-Agent": "Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/116 Mobile Safari/537.36",
       "Accept": "application/json, text/plain, */*",
       "Content-Type": "application/json",
 
-      // 🔥 très important
+      // 🔑 CSRF protection
       "X-CSRF-TOKEN": CSRF,
 
+      // 🔑 Très important
       "Origin": "https://tronpick.io",
       "Referer": "https://tronpick.io/dashboard",
 
-      // 🔑 session réelle
+      // 🔑 Session utilisateur
       "Cookie": COOKIE
     };
 
+    // ⚡ Requête vers Tronpick
     const response = await fetch("https://tronpick.io/api/claim", {
       method: "POST",
       headers,
