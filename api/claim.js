@@ -1,16 +1,48 @@
-
 export default async function handler(req, res) {
   try {
-    const TOKEN = process.env.TOKEN;
+    const COOKIE = process.env.COOKIE;
+    const CSRF = process.env.CSRF;
 
-    if (!TOKEN) {
-      return res.status(500).json({ error: "Token manquant" });
+    if (!COOKIE || !CSRF) {
+      return res.status(500).json({
+        error: "COOKIE ou CSRF manquant"
+      });
+    }
+
+    const headers = {
+      "User-Agent": "Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 Chrome/116 Mobile Safari/537.36",
+      "Accept": "application/json, text/plain, */*",
+      "Content-Type": "application/json",
+
+      // 🔥 très important
+      "X-CSRF-TOKEN": CSRF,
+
+      "Origin": "https://tronpick.io",
+      "Referer": "https://tronpick.io/dashboard",
+
+      // 🔑 session réelle
+      "Cookie": COOKIE
+    };
+
+    const response = await fetch("https://tronpick.io/api/claim", {
+      method: "POST",
+      headers,
+      body: JSON.stringify({})
+    });
+
+    const text = await response.text();
+
+    let data;
+    try {
+      data = JSON.parse(text);
+    } catch {
+      data = text;
     }
 
     return res.status(200).json({
       success: true,
-      message: "Mini bot prêt 🔥",
-      token_preview: TOKEN.substring(0, 10) + "..."
+      status: response.status,
+      result: data
     });
 
   } catch (err) {
