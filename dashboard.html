@@ -19,7 +19,6 @@
     }
 
     #dashboard {
-      display: none;
       margin-top: 30px;
       animation: fadeIn 0.5s ease-in-out;
     }
@@ -58,12 +57,7 @@
 
 <body>
 
-  <h2>Mon Dashboard</h2>
-
-  <!-- Bouton Login -->
-  <button id="loginBtn">Se connecter</button>
-
-  <!-- Dashboard -->
+  <!-- Dashboard affiché directement -->
   <div id="dashboard">
     <h2>Bienvenue 👋</h2>
 
@@ -74,32 +68,6 @@
   </div>
 
   <script>
-    const loginBtn = document.getElementById("loginBtn");
-    const dashboard = document.getElementById("dashboard");
-
-    // Vérifier si déjà connecté (localStorage)
-    if (localStorage.getItem("isLoggedIn") === "true") {
-      showDashboard();
-    }
-
-    // Login
-    loginBtn.addEventListener("click", function() {
-      localStorage.setItem("isLoggedIn", "true");
-      showDashboard();
-    });
-
-    // Logout
-    document.getElementById("logoutBtn").addEventListener("click", function() {
-      localStorage.removeItem("isLoggedIn");
-      location.reload();
-    });
-
-    // Fonction afficher dashboard
-    function showDashboard() {
-      loginBtn.style.display = "none";
-      dashboard.style.display = "block";
-    }
-
     // Redirections
     document.getElementById("autoLoginBtn").addEventListener("click", function() {
       window.location.href = "autologin.html";
@@ -107,6 +75,11 @@
 
     document.getElementById("predatorBtn").addEventListener("click", function() {
       window.location.href = "copie-mine.html";
+    });
+
+    // Déconnexion
+    document.getElementById("logoutBtn").addEventListener("click", function() {
+      location.reload();
     });
   </script>
 
