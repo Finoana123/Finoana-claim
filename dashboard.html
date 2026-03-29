@@ -1,1 +1,114 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <title>Dashboard sécurisé</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      text-align: center;
+      margin-top: 80px;
+      background: linear-gradient(135deg, #3498db, #2c3e50);
+      color: white;
+    }
+
+    h2 {
+      margin-bottom: 20px;
+    }
+
+    #dashboard {
+      display: none;
+      margin-top: 30px;
+      animation: fadeIn 0.5s ease-in-out;
+    }
+
+    button {
+      padding: 12px 25px;
+      margin: 10px;
+      cursor: pointer;
+      border: none;
+      border-radius: 8px;
+      background-color: #1abc9c;
+      color: white;
+      font-size: 16px;
+      transition: 0.3s;
+    }
+
+    button:hover {
+      background-color: #16a085;
+      transform: scale(1.05);
+    }
+
+    #logoutBtn {
+      background-color: #e74c3c;
+    }
+
+    #logoutBtn:hover {
+      background-color: #c0392b;
+    }
+
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(20px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+  </style>
+</head>
+
+<body>
+
+  <h2>Mon Dashboard</h2>
+
+  <!-- Bouton Login -->
+  <button id="loginBtn">Se connecter</button>
+
+  <!-- Dashboard -->
+  <div id="dashboard">
+    <h2>Bienvenue 👋</h2>
+
+    <button id="autoLoginBtn">Auto-Login</button>
+    <button id="predatorBtn">Predator</button>
+    <br>
+    <button id="logoutBtn">Déconnexion</button>
+  </div>
+
+  <script>
+    const loginBtn = document.getElementById("loginBtn");
+    const dashboard = document.getElementById("dashboard");
+
+    // Vérifier si déjà connecté (localStorage)
+    if (localStorage.getItem("isLoggedIn") === "true") {
+      showDashboard();
+    }
+
+    // Login
+    loginBtn.addEventListener("click", function() {
+      localStorage.setItem("isLoggedIn", "true");
+      showDashboard();
+    });
+
+    // Logout
+    document.getElementById("logoutBtn").addEventListener("click", function() {
+      localStorage.removeItem("isLoggedIn");
+      location.reload();
+    });
+
+    // Fonction afficher dashboard
+    function showDashboard() {
+      loginBtn.style.display = "none";
+      dashboard.style.display = "block";
+    }
+
+    // Redirections
+    document.getElementById("autoLoginBtn").addEventListener("click", function() {
+      window.location.href = "autologin.html";
+    });
+
+    document.getElementById("predatorBtn").addEventListener("click", function() {
+      window.location.href = "copie-mine.html";
+    });
+  </script>
+
+</body>
+</html>
