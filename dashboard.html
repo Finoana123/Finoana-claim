@@ -14,7 +14,12 @@
       color: white;
     }
 
+    h2 {
+      margin-bottom: 20px;
+    }
+
     #dashboard {
+      display: none;
       margin-top: 30px;
       animation: fadeIn 0.5s ease-in-out;
     }
@@ -53,39 +58,57 @@
 
 <body>
 
-<script>
-  // 🔒 Protection (IMPORTANT)
-  if (localStorage.getItem("isLoggedIn") !== "true") {
-    window.location.href = "index.html";
-  }
-</script>
+  <h2>Mon Dashboard</h2>
 
-<!-- Dashboard direct -->
-<div id="dashboard">
-  <h2>Bienvenue 👋</h2>
+  <!-- Bouton Login -->
+  <button id="loginBtn">Se connecter</button>
 
-  <button id="autoLoginBtn">Auto-Login</button>
-  <button id="predatorBtn">Predator</button>
-  <br>
-  <button id="logoutBtn">Déconnexion</button>
-</div>
+  <!-- Dashboard -->
+  <div id="dashboard">
+    <h2>Bienvenue 👋</h2>
 
-<script>
-  // 🔓 Déconnexion propre
-  document.getElementById("logoutBtn").addEventListener("click", function() {
-    localStorage.removeItem("isLoggedIn");
-    window.location.href = "index.html";
-  });
+    <button id="autoLoginBtn">Auto-Login</button>
+    <button id="predatorBtn">Predator</button>
+    <br>
+    <button id="logoutBtn">Déconnexion</button>
+  </div>
 
-  // Redirections (inchangées)
-  document.getElementById("autoLoginBtn").addEventListener("click", function() {
-    window.location.href = "autologin.html";
-  });
+  <script>
+    const loginBtn = document.getElementById("loginBtn");
+    const dashboard = document.getElementById("dashboard");
 
-  document.getElementById("predatorBtn").addEventListener("click", function() {
-    window.location.href = "copie-mine.html";
-  });
-</script>
+    // Vérifier si déjà connecté (localStorage)
+    if (localStorage.getItem("isLoggedIn") === "true") {
+      showDashboard();
+    }
+
+    // Login
+    loginBtn.addEventListener("click", function() {
+      localStorage.setItem("isLoggedIn", "true");
+      showDashboard();
+    });
+
+    // Logout
+    document.getElementById("logoutBtn").addEventListener("click", function() {
+      localStorage.removeItem("isLoggedIn");
+      location.reload();
+    });
+
+    // Fonction afficher dashboard
+    function showDashboard() {
+      loginBtn.style.display = "none";
+      dashboard.style.display = "block";
+    }
+
+    // Redirections
+    document.getElementById("autoLoginBtn").addEventListener("click", function() {
+      window.location.href = "autologin.html";
+    });
+
+    document.getElementById("predatorBtn").addEventListener("click", function() {
+      window.location.href = "copie-mine.html";
+    });
+  </script>
 
 </body>
 </html>
