@@ -138,11 +138,12 @@ input {
 
 <body>
 
-<!-- 🔐 PROTECTION LOGIN (AJOUT SEULEMENT) -->
+<!-- 🔐 PROTECTION LOGIN -->
 <script>
 (function () {
   const token = localStorage.getItem("token");
   if (!token) {
+    // redirige vers index.html si pas connecté
     window.location.replace("index.html");
   }
 })();
@@ -300,7 +301,7 @@ function hashCode(str){
   return Math.abs(hash);
 }
 
-// prediction
+// prediction (green only)
 function runPrediction(){
   if(!isValid()) return;
 
