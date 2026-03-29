@@ -1,0 +1,359 @@
+html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>MINE PICK</title>
+
+<style>
+body {
+  margin:0;
+  font-family:Arial;
+  background: radial-gradient(circle at top,#0f172a,#020617);
+  color:white;
+  text-align:center;
+}
+
+.header {
+  font-size:26px;
+  font-weight:bold;
+  color:#ffa726;
+  margin-top:15px;
+  text-shadow:0 0 15px #ffa726,0 0 30px #ff9800;
+}
+
+/* GRID */
+.grid {
+  display:grid;
+  grid-template-columns:repeat(5,1fr);
+  gap:10px;
+  padding:10px;
+}
+
+.cell {
+  aspect-ratio:1;
+  border-radius:14px;
+  background:#020617;
+  border:2px solid #ffa726;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  flex-direction:column;
+  cursor:pointer;
+  transition:0.25s;
+}
+
+.cell:hover {
+  transform:scale(1.05);
+  box-shadow:0 0 15px #ffa726;
+}
+
+.mine {
+  background:#ef4444;
+  box-shadow:0 0 15px #ef4444;
+}
+
+.safe {
+  background:#22c55e;
+  box-shadow:0 0 20px #22c55e;
+  animation:pop 0.3s ease;
+}
+
+@keyframes pop {
+  0%{transform:scale(0.5);opacity:0;}
+  100%{transform:scale(1);opacity:1;}
+}
+
+.percent {
+  font-size:14px;
+  font-weight:bold;
+}
+
+/* BUTTONS */
+.mine-select button {
+  margin:4px;
+  padding:6px 12px;
+  border:none;
+  border-radius:8px;
+  cursor:pointer;
+  background:#1f2937;
+  color:white;
+}
+
+.mine-select .active {
+  background:#ffa726;
+  box-shadow:0 0 10px #ffa726;
+}
+
+/* MAIN BUTTON */
+button {
+  width:90%;
+  margin-top:15px;
+  padding:14px;
+  font-size:18px;
+  border:none;
+  border-radius:30px;
+  background:linear-gradient(45deg,#ff9800,#ff5722);
+  color:white;
+  box-shadow:0 0 20px #ff9800;
+}
+
+button:disabled {
+  background:gray;
+  box-shadow:none;
+}
+
+/* INPUT */
+input {
+  width:85%;
+  margin-top:8px;
+  padding:10px;
+  border-radius:12px;
+  border:none;
+  text-align:center;
+  background:#111827;
+  color:white;
+  box-shadow:0 0 8px #000;
+}
+
+/* TOAST */
+.toast {
+  position:fixed;
+  bottom:20px;
+  left:50%;
+  transform:translateX(-50%);
+  background:#ef4444;
+  padding:10px 20px;
+  border-radius:20px;
+  color:white;
+  opacity:0;
+  transition:0.3s;
+}
+
+.toast.show {
+  opacity:1;
+}
+</style>
+</head>
+
+<body>
+
+<div class="header">⛏ MINES PICK</div>
+
+<input type="text" id="hash" placeholder="Hash">
+<br>
+<input type="text" id="clientSeed" placeholder="Client Seed">
+
+<div class="mine-select">
+<p>Select Mines (3 - 10)</p>
+<div id="mineButtons"></div>
+</div>
+
+<div class="grid" id="grid"></div>
+
+<button id="mainBtn" onclick="handleAction()" disabled>PREDICT</button>
+
+<div id="toast" class="toast"></div>
+
+<script>
+const grid=document.getElementById('grid');
+const cells=[];
+let minesPlaced=[];
+let mineTarget=null;
+let predicted=false;
+let animating=false;
+
+const mapping={3:5,4:4,5:5,6:4,7:3,8:3,9:3,10:2};
+
+// toast
+function showToast(msg){
+  const t=document.getElementById('toast');
+  t.innerText=msg;
+  t.classList.add('show');
+  setTimeout(()=>t.classList.remove('show'),2000);
+}
+
+// buttons
+const btnContainer=document.getElementById('mineButtons');
+for(let i=3;i<=10;i++){
+  const b=document.createElement('button');
+  b.innerText=i;
+  b.onclick=(e)=>setMine(i,e);
+  btnContainer.appendChild(b);
+}
+
+function setMine(n,e){
+  if(predicted||animating)return;
+  mineTarget=n;
+
+  document.querySelectorAll('.mine-select button').forEach(b=>b.classList.remove('active'));
+  e.target.classList.add('active');
+
+  reset();
+}
+
+function reset(){
+  minesPlaced=[];
+  predicted=false;
+  animating=false;
+
+  document.getElementById('mainBtn').innerText='PREDICT';
+
+  cells.forEach(c=>{
+    c.classList.remove('mine','safe');
+    c.innerHTML='';
+  });
+
+  checkReady();
+}
+
+// grid
+for(let i=0;i<25;i++){
+  const div=document.createElement('div');
+  div.classList.add('cell');
+
+  div.onclick=()=>{
+    if(mineTarget===null){
+      showToast("Safidio aloha ny mines");
+      return;
+    }
+
+    if(predicted||animating) return;
+
+    if(!minesPlaced.includes(i)){
+      if(minesPlaced.length>=mineTarget){
+        showToast("Feno ny mines");
+        return;
+      }
+      minesPlaced.push(i);
+      div.classList.add('mine');
+    } else {
+      minesPlaced=minesPlaced.filter(x=>x!==i);
+      div.classList.remove('mine');
+    }
+
+    checkReady();
+  };
+
+  grid.appendChild(div);
+  cells.push(div);
+}
+
+// validation
+function isValid(){
+  const hash=document.getElementById('hash').value.trim();
+  const seed=document.getElementById('clientSeed').value.trim();
+
+  if(!/^[a-zA-Z0-9]{10,}$/.test(hash)){
+    showToast("Hash tsy ampy");
+    return false;
+  }
+
+  if(!/^[a-zA-Z0-9]{7,}$/.test(seed)){
+    showToast("Client Seed tsy ampy");
+    return false;
+  }
+
+  if(mineTarget===null || minesPlaced.length!==mineTarget){
+    showToast("Safidio tsara ny mines");
+    return false;
+  }
+
+  return true;
+}
+
+function checkReady(){
+  const hash=document.getElementById('hash').value.trim();
+  const seed=document.getElementById('clientSeed').value.trim();
+
+  const validHash=/^[a-zA-Z0-9]{10,}$/.test(hash);
+  const validSeed=/^[a-zA-Z0-9]{7,}$/.test(seed);
+
+  document.getElementById('mainBtn').disabled = !(
+    validHash &&
+    validSeed &&
+    mineTarget!==null &&
+    minesPlaced.length===mineTarget
+  );
+}
+
+document.getElementById('hash').addEventListener('input',checkReady);
+document.getElementById('clientSeed').addEventListener('input',checkReady);
+
+// hash
+function hashCode(str){
+  let hash=0;
+  for(let i=0;i<str.length;i++){
+    hash=((hash<<5)-hash)+str.charCodeAt(i);
+    hash|=0;
+  }
+  return Math.abs(hash);
+}
+
+// prediction (green only)
+function runPrediction(){
+  if(!isValid()) return;
+
+  predicted=true;
+  animating=true;
+
+  const hash=document.getElementById('hash').value;
+  const seedInput=document.getElementById('clientSeed').value;
+
+  let seed=hashCode(hash+seedInput);
+  let total=mapping[mineTarget]||4;
+
+  cells.forEach(c=>{
+    c.classList.remove('mine','safe');
+    c.innerHTML='';
+  });
+
+  let picks=[];
+
+  while(picks.length<total){
+    seed=(seed*9301+49297)%233280;
+    let idx=Math.floor((seed/233280)*25);
+    if(!picks.includes(idx)) picks.push(idx);
+  }
+
+  picks.forEach((index,i)=>{
+    setTimeout(()=>{
+      let percent=Math.floor(70+Math.random()*30);
+      cells[index].classList.add('safe');
+      cells[index].innerHTML='<div class="percent">'+percent+'%</div>';
+
+      if(i===picks.length-1){
+        animating=false;
+        document.getElementById('mainBtn').innerText='SUPPRIMER';
+      }
+
+    },i*100);
+  });
+}
+
+function handleAction(){
+  if(animating) return;
+  if(!predicted) runPrediction();
+  else clearAll();
+}
+
+function clearAll(){
+  predicted=false;
+  minesPlaced=[];
+  mineTarget=null;
+
+  cells.forEach(c=>{
+    c.classList.remove('mine','safe');
+    c.innerHTML='';
+  });
+
+  document.getElementById('hash').value='';
+  document.getElementById('clientSeed').value='';
+  document.getElementById('mainBtn').innerText='PREDICT';
+  document.getElementById('mainBtn').disabled=true;
+
+  document.querySelectorAll('.mine-select button').forEach(b=>b.classList.remove('active'));
+}
+</script>
+
+</body>
+</html>
