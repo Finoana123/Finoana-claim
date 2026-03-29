@@ -85,8 +85,8 @@
 
     // Déconnexion -> suppression session + redirection
     document.getElementById("logoutBtn").addEventListener("click", function() {
-      localStorage.removeItem("isLoggedIn");
-      window.location.href = "index.html";
+      localStorage.removeItem("isLoggedIn"); // supprimer la session
+      window.location.href = "index.html";   // retour à l'accueil
     });
   </script>
 
