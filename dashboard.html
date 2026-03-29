@@ -2,7 +2,7 @@
 <html lang="fr">
 <head>
   <meta charset="UTF-8">
-  <title>Dashboard sécurisé</title>
+  <title>Dashboard</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
   <style>
@@ -12,16 +12,6 @@
       margin-top: 80px;
       background: linear-gradient(135deg, #3498db, #2c3e50);
       color: white;
-    }
-
-    h2 {
-      margin-bottom: 20px;
-    }
-
-    #dashboard {
-      display: none;
-      margin-top: 30px;
-      animation: fadeIn 0.5s ease-in-out;
     }
 
     button {
@@ -48,57 +38,29 @@
     #logoutBtn:hover {
       background-color: #c0392b;
     }
-
-    @keyframes fadeIn {
-      from { opacity: 0; transform: translateY(20px); }
-      to { opacity: 1; transform: translateY(0); }
-    }
   </style>
 </head>
 
 <body>
 
-  <h2>Mon Dashboard</h2>
+  <h2>Bienvenue dans le Dashboard 👋</h2>
 
-  <!-- Bouton Login -->
-  <button id="loginBtn">Se connecter</button>
-
-  <!-- Dashboard -->
-  <div id="dashboard">
-    <h2>Bienvenue 👋</h2>
-
-    <button id="autoLoginBtn">Auto-Login</button>
-    <button id="predatorBtn">Predator</button>
-    <br>
-    <button id="logoutBtn">Déconnexion</button>
-  </div>
+  <button id="autoLoginBtn">Auto-Login</button>
+  <button id="predatorBtn">Predator</button>
+  <br>
+  <button id="logoutBtn">Déconnexion</button>
 
   <script>
-    const loginBtn = document.getElementById("loginBtn");
-    const dashboard = document.getElementById("dashboard");
-
-    // Vérifier si déjà connecté (localStorage)
-    if (localStorage.getItem("isLoggedIn") === "true") {
-      showDashboard();
+    // 🔒 Vérifier si connecté
+    if (localStorage.getItem("isLoggedIn") !== "true") {
+      window.location.href = "login.html";
     }
 
-    // Login
-    loginBtn.addEventListener("click", function() {
-      localStorage.setItem("isLoggedIn", "true");
-      showDashboard();
-    });
-
-    // Logout
+    // 🔓 Déconnexion
     document.getElementById("logoutBtn").addEventListener("click", function() {
       localStorage.removeItem("isLoggedIn");
-      location.reload();
+      window.location.href = "login.html";
     });
-
-    // Fonction afficher dashboard
-    function showDashboard() {
-      loginBtn.style.display = "none";
-      dashboard.style.display = "block";
-    }
 
     // Redirections
     document.getElementById("autoLoginBtn").addEventListener("click", function() {
