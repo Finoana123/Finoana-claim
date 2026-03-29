@@ -8,34 +8,28 @@
     body {
       font-family: Arial, sans-serif;
       text-align: center;
-      margin-top: 60px;
-      background: linear-gradient(135deg, #3498db, #2c3e50);
-      color: white;
+      margin-top: 50px;
+      background: #f4f4f4;
     }
 
-    h2 {
-      margin-bottom: 20px;
-    }
-
-    .container {
+    #dashboard {
       margin-top: 30px;
     }
 
     button {
-      padding: 12px 25px;
+      padding: 10px 20px;
       margin: 10px;
       cursor: pointer;
       border: none;
-      border-radius: 8px;
-      background-color: #1abc9c;
+      border-radius: 5px;
+      background-color: #3498db;
       color: white;
       font-size: 16px;
-      transition: 0.3s;
+      transition: background-color 0.3s;
     }
 
     button:hover {
-      background-color: #16a085;
-      transform: scale(1.05);
+      background-color: #2980b9;
     }
 
     #logoutBtn {
@@ -51,36 +45,37 @@
 <body>
 
 <script>
-  // 🔒 Protection page
+  // 🔒 Protection (IMPORTANT)
   if (localStorage.getItem("isLoggedIn") !== "true") {
     window.location.href = "index.html";
   }
 </script>
 
-<h2>Dashboard 🔥</h2>
+<!-- TON DASHBOARD ORIGINAL -->
+<div id="dashboard">
+  <h2>Bienvenue dans le Dashboard</h2>
 
-<div class="container">
-  <button onclick="goAuto()">Auto-Login</button>
-  <button onclick="goPredator()">Predator</button>
+  <button id="autoLoginBtn">Auto-Login</button>
+  <button id="predatorBtn">Predator</button>
+  <br>
+  <button id="logoutBtn">Déconnexion</button>
 </div>
 
-<br>
-
-<button id="logoutBtn" onclick="logout()">Déconnexion</button>
-
 <script>
-  function logout() {
+  // Redirections (inchangées)
+  document.getElementById("autoLoginBtn").addEventListener("click", function() {
+    window.location.href = "autologin.html";
+  });
+
+  document.getElementById("predatorBtn").addEventListener("click", function() {
+    window.location.href = "copie-mine.html";
+  });
+
+  // 🔓 Déconnexion propre
+  document.getElementById("logoutBtn").addEventListener("click", function() {
     localStorage.removeItem("isLoggedIn");
     window.location.href = "index.html";
-  }
-
-  function goAuto() {
-    window.location.href = "autologin.html";
-  }
-
-  function goPredator() {
-    window.location.href = "copie-mine.html";
-  }
+  });
 </script>
 
 </body>
