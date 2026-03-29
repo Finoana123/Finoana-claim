@@ -68,8 +68,9 @@
   </div>
 
   <script>
-    // Vérifier si l'utilisateur est connecté
-    if (localStorage.getItem("isLoggedIn") !== "true") {
+    // Vérifier si l'utilisateur est connecté via localStorage
+    const loggedUser = localStorage.getItem("loggedUser");
+    if (!loggedUser) {
       // Si non connecté, redirection vers index.html
       window.location.href = "index.html";
     }
@@ -85,7 +86,7 @@
 
     // Déconnexion -> suppression session + redirection
     document.getElementById("logoutBtn").addEventListener("click", function() {
-      localStorage.removeItem("isLoggedIn"); // supprimer la session
+      localStorage.removeItem("loggedUser"); // supprimer la session
       window.location.href = "index.html";   // retour à l'accueil
     });
   </script>
