@@ -2,34 +2,38 @@
 <html lang="fr">
 <head>
   <meta charset="UTF-8">
-  <title>Dashboard</title>
+  <title>Dashboard sécurisé</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
   <style>
     body {
       font-family: Arial, sans-serif;
       text-align: center;
-      margin-top: 50px;
-      background: #f4f4f4;
+      margin-top: 80px;
+      background: linear-gradient(135deg, #3498db, #2c3e50);
+      color: white;
     }
 
     #dashboard {
       margin-top: 30px;
+      animation: fadeIn 0.5s ease-in-out;
     }
 
     button {
-      padding: 10px 20px;
+      padding: 12px 25px;
       margin: 10px;
       cursor: pointer;
       border: none;
-      border-radius: 5px;
-      background-color: #3498db;
+      border-radius: 8px;
+      background-color: #1abc9c;
       color: white;
       font-size: 16px;
-      transition: background-color 0.3s;
+      transition: 0.3s;
     }
 
     button:hover {
-      background-color: #2980b9;
+      background-color: #16a085;
+      transform: scale(1.05);
     }
 
     #logoutBtn {
@@ -38,6 +42,11 @@
 
     #logoutBtn:hover {
       background-color: #c0392b;
+    }
+
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(20px); }
+      to { opacity: 1; transform: translateY(0); }
     }
   </style>
 </head>
@@ -51,9 +60,9 @@
   }
 </script>
 
-<!-- TON DASHBOARD ORIGINAL -->
+<!-- Dashboard direct -->
 <div id="dashboard">
-  <h2>Bienvenue dans le Dashboard</h2>
+  <h2>Bienvenue 👋</h2>
 
   <button id="autoLoginBtn">Auto-Login</button>
   <button id="predatorBtn">Predator</button>
@@ -62,6 +71,12 @@
 </div>
 
 <script>
+  // 🔓 Déconnexion propre
+  document.getElementById("logoutBtn").addEventListener("click", function() {
+    localStorage.removeItem("isLoggedIn");
+    window.location.href = "index.html";
+  });
+
   // Redirections (inchangées)
   document.getElementById("autoLoginBtn").addEventListener("click", function() {
     window.location.href = "autologin.html";
@@ -69,12 +84,6 @@
 
   document.getElementById("predatorBtn").addEventListener("click", function() {
     window.location.href = "copie-mine.html";
-  });
-
-  // 🔓 Déconnexion propre
-  document.getElementById("logoutBtn").addEventListener("click", function() {
-    localStorage.removeItem("isLoggedIn");
-    window.location.href = "index.html";
   });
 </script>
 
