@@ -42,7 +42,6 @@
   <h2>Page Copie Mine</h2>
   <p>Contenu réservé aux utilisateurs connectés</p>
 
-  <!-- Exemple de contenu -->
   <div id="content">
     <p>Ici se trouve le contenu de la page Copie Mine.</p>
   </div>
@@ -50,10 +49,9 @@
   <button id="logoutBtn">Déconnexion</button>
 
   <script>
-    // Vérifier si l'utilisateur est connecté
+    // Vérifier immédiatement si l'utilisateur est connecté
     const loggedUser = localStorage.getItem("loggedUser");
     if (!loggedUser) {
-      // Si non connecté, redirection vers index.html
       window.location.href = "index.html";
     }
 
