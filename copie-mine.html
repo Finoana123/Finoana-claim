@@ -145,7 +145,7 @@ for(let i=0;i<25;i++){
       minesPlaced.push(i);
       div.classList.add('mine');
     } else {
-      minesPlaced=minePlaced.filter(x=>x!==i);
+      minesPlaced=minesPlaced.filter(x=>x!==i);
       div.classList.remove('mine');
     }
 
@@ -266,7 +266,4 @@ function clearAll(){
 
   document.getElementById('hash').value='';
   document.getElementById('clientSeed').value='';
-  document.getElementById('mainBtn').innerText='PREDICT';
-  document.getElementById('mainBtn').disabled=true;
-
-  document.querySelectorAll('.mine-select button').forEach(b=>b.class
+  document.get
