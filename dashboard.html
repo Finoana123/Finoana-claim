@@ -57,7 +57,7 @@
 
 <body>
 
-  <!-- Dashboard affiché directement -->
+  <!-- Dashboard affiché uniquement si connecté -->
   <div id="dashboard">
     <h2>Bienvenue 👋</h2>
 
@@ -68,6 +68,12 @@
   </div>
 
   <script>
+    // Vérifier si l'utilisateur est connecté
+    if (localStorage.getItem("isLoggedIn") !== "true") {
+      // Si non connecté, redirection vers index.html
+      window.location.href = "index.html";
+    }
+
     // Redirections
     document.getElementById("autoLoginBtn").addEventListener("click", function() {
       window.location.href = "autologin.html";
@@ -77,8 +83,9 @@
       window.location.href = "copie-mine.html";
     });
 
-    // Déconnexion -> redirection vers index.html
+    // Déconnexion -> suppression session + redirection
     document.getElementById("logoutBtn").addEventListener("click", function() {
+      localStorage.removeItem("isLoggedIn");
       window.location.href = "index.html";
     });
   </script>
