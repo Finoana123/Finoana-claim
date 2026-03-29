@@ -1,66 +1,62 @@
 <!DOCTYPE html>
 <html lang="fr">
 <head>
-  <meta charset="UTF-8">
-  <title>Copie Mine</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Copie Mine</title>
 
-  <style>
-    body {
-      font-family: Arial, sans-serif;
-      text-align: center;
-      margin-top: 80px;
-      background: linear-gradient(135deg, #8e44ad, #2c3e50);
-      color: white;
-    }
-    h2 { margin-bottom: 20px; }
-    button {
-      padding: 12px 25px;
-      margin: 10px;
-      cursor: pointer;
-      border: none;
-      border-radius: 8px;
-      background-color: #1abc9c;
-      color: white;
-      font-size: 16px;
-      transition: 0.3s;
-    }
-    button:hover {
-      background-color: #16a085;
-      transform: scale(1.05);
-    }
-    #logoutBtn {
-      background-color: #e74c3c;
-    }
-    #logoutBtn:hover {
-      background-color: #c0392b;
-    }
-  </style>
+<!-- Firebase v9+ compat CDN -->
+<script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-database-compat.js"></script>
+
+<script>
+const firebaseConfig = {
+  apiKey: "AIzaSyAuuM8srnQNvYHJG5vMFfJQq-MwpU2H0Po",
+  authDomain: "finoana-autoclaim.firebaseapp.com",
+  projectId: "finoana-autoclaim",
+  storageBucket: "finoana-autoclaim.firebasestorage.app",
+  messagingSenderId: "873516238295",
+  appId: "1:873516238295:web:ab78797587d0f300173792"
+};
+
+firebase.initializeApp(firebaseConfig);
+const auth = firebase.auth();
+const db = firebase.database();
+
+// Vérification immédiate de l'authentification
+if (!localStorage.getItem("loggedUser")) {
+  window.location.href = "index.html";
+}
+</script>
+
+<style>
+body{ font-family:Arial; text-align:center; margin-top:80px; background:#e6f7ff;}
+h1{ color:#333; }
+button{ padding:12px 25px; background:#28a745; color:white; border:none; border-radius:5px; font-size:16px; cursor:pointer;}
+button:hover{ background:#218838; }
+.logout{ background:#e74c3c; }
+.logout:hover{ background:#c0392b; }
+</style>
+
 </head>
 <body>
 
-  <h2>Page Copie Mine</h2>
-  <p>Contenu réservé aux utilisateurs connectés</p>
+<h1>Page Copie Mine</h1>
+<p>Contenu réservé aux utilisateurs connectés</p>
 
-  <div id="content">
-    <p>Ici se trouve le contenu de la page Copie Mine.</p>
-  </div>
+<div id="content">
+  <p>Ici se trouve le contenu de la page Copie Mine.</p>
+</div>
 
-  <button id="logoutBtn">Déconnexion</button>
+<button id="logoutBtn" class="logout">Déconnexion</button>
 
-  <script>
-    // Vérifier immédiatement si l'utilisateur est connecté
-    const loggedUser = localStorage.getItem("loggedUser");
-    if (!loggedUser) {
-      window.location.href = "index.html";
-    }
-
-    // Déconnexion
-    document.getElementById("logoutBtn").addEventListener("click", function() {
-      localStorage.removeItem("loggedUser");
-      window.location.href = "index.html";
-    });
-  </script>
+<script>
+document.getElementById("logoutBtn").addEventListener("click", function() {
+  localStorage.removeItem("loggedUser");
+  window.location.href = "index.html";
+});
+</script>
 
 </body>
 </html>
