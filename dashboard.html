@@ -3,15 +3,22 @@
 <head>
   <meta charset="UTF-8">
   <title>Dashboard</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
   <style>
     body {
       font-family: Arial, sans-serif;
       text-align: center;
-      margin-top: 80px;
+      margin-top: 60px;
       background: linear-gradient(135deg, #3498db, #2c3e50);
       color: white;
+    }
+
+    h2 {
+      margin-bottom: 20px;
+    }
+
+    .container {
+      margin-top: 30px;
     }
 
     button {
@@ -43,34 +50,38 @@
 
 <body>
 
-  <h2>Bienvenue dans le Dashboard 👋</h2>
+<script>
+  // 🔒 Protection page
+  if (localStorage.getItem("isLoggedIn") !== "true") {
+    window.location.href = "index.html";
+  }
+</script>
 
-  <button id="autoLoginBtn">Auto-Login</button>
-  <button id="predatorBtn">Predator</button>
-  <br>
-  <button id="logoutBtn">Déconnexion</button>
+<h2>Dashboard 🔥</h2>
 
-  <script>
-    // 🔒 Vérifier si connecté
-    if (localStorage.getItem("isLoggedIn") !== "true") {
-      window.location.href = "login.html";
-    }
+<div class="container">
+  <button onclick="goAuto()">Auto-Login</button>
+  <button onclick="goPredator()">Predator</button>
+</div>
 
-    // 🔓 Déconnexion
-    document.getElementById("logoutBtn").addEventListener("click", function() {
-      localStorage.removeItem("isLoggedIn");
-      window.location.href = "login.html";
-    });
+<br>
 
-    // Redirections
-    document.getElementById("autoLoginBtn").addEventListener("click", function() {
-      window.location.href = "autologin.html";
-    });
+<button id="logoutBtn" onclick="logout()">Déconnexion</button>
 
-    document.getElementById("predatorBtn").addEventListener("click", function() {
-      window.location.href = "copie-mine.html";
-    });
-  </script>
+<script>
+  function logout() {
+    localStorage.removeItem("isLoggedIn");
+    window.location.href = "index.html";
+  }
+
+  function goAuto() {
+    window.location.href = "autologin.html";
+  }
+
+  function goPredator() {
+    window.location.href = "copie-mine.html";
+  }
+</script>
 
 </body>
 </html>
