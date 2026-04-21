@@ -1,4 +1,4 @@
-// /api/autologin.js - Login TronPick via Browserless
+// /api/autologin.js - Login TronPick via Browserless (avec logs)
 export default async function handler(req, res) {
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Méthode non autorisée' });
@@ -9,11 +9,14 @@ export default async function handler(req, res) {
     return res.status(400).json({ error: 'Champs manquants : email, password, platform, userId' });
   }
 
-  // ✅ Ta clé API Browserless
   const BROWSERLESS_API_KEY = '2UNOrIFUI3VKtOb3c74a76935a0b4c0ba22bfd1387c6dcbcf';
   const BROWSERLESS_URL = `https://chrome.browserless.io/puppeteer?token=${BROWSERLESS_API_KEY}`;
 
-  // Script Puppeteer complet (exécuté dans le cloud)
+  // Construction du script avec échappement correct des variables
+  const safeEmail = email.replace(/'/g, "\\'");
+  const safePassword = password.replace(/'/g, "\\'");
+  const safeProxy = proxy ? proxy.replace(/'/g, "\\'") : '';
+
   const script = `
     (async () => {
       const puppeteer = require('puppeteer-core');
@@ -23,7 +26,7 @@ export default async function handler(req, res) {
         args: ['--no-sandbox', '--disable-setuid-sandbox']
       };
       
-      const proxy = '${proxy || ''}';
+      const proxy = '${safeProxy}';
       if (proxy) {
         launchOptions.args.push(\`--proxy-server=\${proxy}\`);
       }
@@ -39,24 +42,18 @@ export default async function handler(req, res) {
       }
 
       try {
-        // 1. Aller sur la page login
         await page.goto('https://tronpick.io/login', { waitUntil: 'networkidle2', timeout: 30000 });
-        
-        // 2. Remplir le formulaire
         await page.waitForSelector('input[name="email"]', { timeout: 10000 });
-        await page.type('input[name="email"]', '${email}');
-        await page.type('input[name="password"]', '${password}');
+        await page.type('input[name="email"]', '${safeEmail}');
+        await page.type('input[name="password"]', '${safePassword}');
         
-        // 3. Soumettre
         await Promise.all([
           page.click('button[type="submit"]'),
           page.waitForNavigation({ waitUntil: 'networkidle2', timeout: 30000 })
         ]);
         
-        // 4. Attendre la stabilisation de la session
         await page.waitForTimeout(5000);
         
-        // 5. Récupérer le cookie de session
         const cookies = await page.cookies();
         const sessionCookie = cookies.find(c => 
           c.name.includes('session') || 
@@ -82,6 +79,8 @@ export default async function handler(req, res) {
   `;
 
   try {
+    console.log('🚀 Envoi du script à Browserless...');
+    
     const response = await fetch(BROWSERLESS_URL, {
       method: 'POST',
       headers: { 'Content-Type': 'application/javascript' },
@@ -89,12 +88,19 @@ export default async function handler(req, res) {
     });
 
     const text = await response.text();
+    console.log('📬 Statut HTTP:', response.status);
+    console.log('📄 Réponse brute (500 premiers caractères):', text.substring(0, 500));
+
     let data;
     try {
       data = JSON.parse(text);
     } catch (e) {
-      console.error('Réponse brute de Browserless:', text);
-      throw new Error('Browserless a renvoyé une réponse non-JSON');
+      // Si ce n'est pas du JSON, on renvoie l'erreur avec la réponse brute pour diagnostic
+      console.error('❌ Réponse non-JSON reçue');
+      return res.status(500).json({ 
+        error: 'Browserless a renvoyé une réponse non-JSON', 
+        rawResponse: text.substring(0, 300) 
+      });
     }
 
     if (!response.ok) {
@@ -104,7 +110,7 @@ export default async function handler(req, res) {
     return res.status(200).json(data);
 
   } catch (error) {
-    console.error('Erreur autologin:', error.message);
+    console.error('❌ Erreur autologin:', error.message);
     return res.status(500).json({ error: error.message });
   }
 }
