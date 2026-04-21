@@ -101,8 +101,8 @@
 
 <form id="claimForm">
   <div class="info-note">
-    ⚡ <strong>Test :</strong> Pour la méthode Login, utilise <strong>TronPick</strong> (simulation active).<br>
-    Les cookies seront sauvegardés dans ton dépôt GitHub privé.
+    ⚡ <strong>Login + Claim immédiat :</strong> après connexion, le claim est tenté automatiquement.<br>
+    Le cookie est sauvegardé dans ton dépôt GitHub privé.
   </div>
 
   <label for="method">🔐 Méthode de connexion</label>
@@ -126,7 +126,7 @@
     <label for="platform">🎮 Plateforme</label>
     <select id="platform">
       <option value="">-- Sélectionnez --</option>
-      <option value="TronPick">TronPick (test simulé)</option>
+      <option value="TronPick">TronPick</option>
       <option value="LitePick">LitePick (bientôt)</option>
       <option value="DogePick">DogePick (bientôt)</option>
       <option value="BTCpick">BTCpick (bientôt)</option>
@@ -163,39 +163,30 @@
 
 <script>
   // ---------- FONCTIONS GLOBALES ----------
-  
-  // Affiche/masque les champs selon la méthode choisie
   window.toggleMethod = function() {
     const method = document.getElementById('method').value;
     document.getElementById('loginFields').classList.add('hidden');
     document.getElementById('cookieFields').classList.add('hidden');
-
     if (method === 'login') {
       document.getElementById('loginFields').classList.remove('hidden');
     } else if (method === 'cookies') {
       document.getElementById('cookieFields').classList.remove('hidden');
     }
-    // Effacer le message de statut
     document.getElementById('statusMsg').textContent = '';
   };
 
-  // Fonction utilitaire pour afficher des messages temporaires
   function setStatus(message, isError = false) {
     const statusEl = document.getElementById('statusMsg');
     statusEl.textContent = message;
     statusEl.style.color = isError ? '#dc3545' : '#28a745';
   }
 
-  // Fonction principale de sauvegarde
   window.saveSettings = async function() {
     const method = document.getElementById('method').value;
     const saveBtn = document.getElementById('saveBtn');
     const originalText = saveBtn.textContent;
-    
-    // Réinitialiser le message
     setStatus('');
 
-    // Récupération des champs communs et spécifiques
     let platform, timer, proxy, cookie = null;
     let email = null, password = null;
 
@@ -215,21 +206,20 @@
       return;
     }
 
-    // Vérifications
     if (!platform) {
       alert('❌ Veuillez sélectionner une plateforme.');
       return;
     }
 
-    // --- IDENTIFIANT UTILISATEUR (stocké localement) ---
+    // ID utilisateur (localStorage)
     let userId = localStorage.getItem('finoana_user_id');
     if (!userId) {
       userId = 'user_' + Math.random().toString(36).substring(2, 12);
       localStorage.setItem('finoana_user_id', userId);
     }
 
-    // --- GESTION DU COOKIE ---
     let finalCookie = null;
+    let claimInfo = null;
 
     try {
       if (method === 'cookies') {
@@ -239,20 +229,17 @@
         }
         finalCookie = cookie;
         setStatus('🍪 Cookie manuel prêt pour la sauvegarde...');
-      } 
-      else if (method === 'login') {
-        // Vérifier les champs login
+      } else if (method === 'login') {
         if (!email || !password) {
           alert('❌ Veuillez saisir email et mot de passe.');
           return;
         }
 
-        // Désactiver le bouton et afficher le chargement
         saveBtn.disabled = true;
-        saveBtn.textContent = '🔄 Authentification en cours...';
-        setStatus(`Connexion à ${platform} avec ${email}...`);
+        saveBtn.textContent = '🔄 Authentification + Claim en cours...';
+        setStatus(`Connexion à ${platform} avec ${email}... (peut prendre 30s)`);
 
-        // Appel à l'API autologin
+        // Appel à l'API qui fait login + claim
         const loginResponse = await fetch('/api/autologin', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -260,7 +247,8 @@
             email: email,
             password: password,
             platform: platform,
-            proxy: proxy || null
+            proxy: proxy || null,
+            userId: userId
           })
         });
 
@@ -270,14 +258,20 @@
         }
 
         finalCookie = loginData.cookie;
-        if (!finalCookie) {
-          throw new Error('Aucun cookie reçu du serveur');
+        claimInfo = loginData.claim;
+
+        if (claimInfo && claimInfo.success) {
+          setStatus(`✅ Login + Claim réussis ! Cookie récupéré.`);
+        } else if (claimInfo) {
+          setStatus(`✅ Login OK, mais claim échoué : ${claimInfo.message}`, true);
+        } else {
+          setStatus(`✅ Login OK, cookie récupéré (claim non tenté).`);
         }
-        
-        setStatus('✅ Authentification réussie, cookie récupéré. Sauvegarde en cours...');
       }
 
-      // --- SAUVEGARDE VIA L'API GITHUB ---
+      // Sauvegarde du cookie dans GitHub
+      setStatus((claimInfo && claimInfo.success) ? '💾 Sauvegarde du cookie dans GitHub...' : '💾 Sauvegarde dans GitHub...');
+      
       const saveResponse = await fetch('/api/save-config', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -295,21 +289,22 @@
         throw new Error(saveData.error || 'Erreur lors de la sauvegarde');
       }
 
-      // Succès complet
-      setStatus(`🎉 Configuration sauvegardée ! Fichier : configs/${userId}.json`);
-      alert(`✅ Configuration sauvegardée avec succès !\n📁 Fichier : configs/${userId}.json`);
+      let successMsg = `✅ Configuration sauvegardée avec succès !\n📁 Fichier : configs/${userId}.json`;
+      if (claimInfo) {
+        successMsg += `\n🎁 Claim : ${claimInfo.success ? 'Réussi' : 'Échoué'}`;
+      }
+      alert(successMsg);
+      setStatus(successMsg.replace(/\n/g, ' '));
 
     } catch (error) {
       console.error('Erreur:', error);
       setStatus(`❌ ${error.message}`, true);
       alert('❌ Erreur : ' + error.message);
     } finally {
-      // Réactiver le bouton
       saveBtn.disabled = false;
       saveBtn.textContent = originalText;
     }
   };
 </script>
-
 </body>
 </html>
