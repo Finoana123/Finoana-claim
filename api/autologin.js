@@ -1,4 +1,4 @@
-// /api/autologin.js - Login TronPick via Browserless (endpoint /function)
+// /api/autologin.js - Login TronPick via Browserless (format fonction directe)
 export default async function handler(req, res) {
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Méthode non autorisée' });
@@ -9,13 +9,12 @@ export default async function handler(req, res) {
     return res.status(400).json({ error: 'Champs manquants : email, password, platform, userId' });
   }
 
-  // ✅ Ta clé API Browserless
   const BROWSERLESS_API_KEY = '2UNOrIFUI3VKtOb3c74a76935a0b4c0ba22bfd1387c6dcbcf';
   const BROWSERLESS_URL = `https://chrome.browserless.io/function?token=${BROWSERLESS_API_KEY}`;
 
-  // 🧠 Code Puppeteer à exécuter (format module.exports pour Browserless)
+  // 🧠 Code Puppeteer au format attendu par /function (fonction async)
   const code = `
-    module.exports = async ({ page, context }) => {
+    async ({ page, context }) => {
       const { email, password, proxy } = context;
       
       // Configuration du proxy
@@ -27,21 +26,21 @@ export default async function handler(req, res) {
       }
 
       try {
-        // 1. Se rendre sur la page de login
+        // 1. Aller sur la page login
         await page.goto('https://tronpick.io/login', { waitUntil: 'networkidle2', timeout: 30000 });
         
-        // 2. Remplir le formulaire de connexion
+        // 2. Remplir le formulaire
         await page.waitForSelector('input[name="email"]', { timeout: 10000 });
         await page.type('input[name="email"]', email);
         await page.type('input[name="password"]', password);
         
-        // 3. Soumettre le formulaire
+        // 3. Soumettre
         await Promise.all([
           page.click('button[type="submit"]'),
           page.waitForNavigation({ waitUntil: 'networkidle2', timeout: 30000 })
         ]);
         
-        // 4. Attendre la stabilisation de la session
+        // 4. Attendre la stabilisation
         await page.waitForTimeout(5000);
         
         // 5. Récupérer le cookie de session
@@ -56,7 +55,6 @@ export default async function handler(req, res) {
           throw new Error('Cookie de session introuvable');
         }
         
-        // 6. Retourner le cookie (format attendu par Browserless)
         return {
           data: { success: true, cookie: \`\${sessionCookie.name}=\${sessionCookie.value}\` },
           type: 'application/json'
@@ -67,10 +65,10 @@ export default async function handler(req, res) {
           type: 'application/json'
         };
       }
-    };
+    }
   `;
 
-  // 📤 Corps de la requête pour l'endpoint /function
+  // Corps de la requête (le code est une chaîne représentant la fonction)
   const payload = {
     code: code,
     context: { email, password, proxy }
@@ -83,14 +81,21 @@ export default async function handler(req, res) {
       body: JSON.stringify(payload)
     });
 
-    const data = await response.json();
-    
+    const text = await response.text();
+    let data;
+    try {
+      data = JSON.parse(text);
+    } catch (e) {
+      console.error('Réponse brute:', text);
+      throw new Error('Browserless a renvoyé une réponse non-JSON : ' + text.substring(0, 200));
+    }
+
     if (!response.ok) {
       throw new Error(data.error || `Erreur HTTP ${response.status}`);
     }
 
-    // Les données sont dans data.data (car on a utilisé le format { data, type })
-    return res.status(200).json(data.data);
+    // Les données sont dans data.data
+    return res.status(200).json(data.data || data);
 
   } catch (error) {
     console.error('Erreur autologin:', error.message);
