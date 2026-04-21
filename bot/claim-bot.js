@@ -7,7 +7,7 @@ import 'dotenv/config';
 const FLARESOLVERR_URL = 'https://flaresolverr-wekb.onrender.com';
 const USER_AGENT = 'Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/116.0.0.0 Mobile Safari/537.36';
 const PLATFORM = 'TronPick';
-const USER_ID = 'user_g5ro565mil'; // À adapter
+const USER_ID = 'user_g5ro565mil';
 const PROXY_URL = 'socks5://Finoana123-US:Finoana123@198.23.239.134:6540';
 
 const GITHUB_TOKEN = process.env.GH_TOKEN;
@@ -68,66 +68,22 @@ async function saveFileToGitHub(path, content, message) {
   });
 }
 
-// ========== EXTRACTION AMÉLIORÉE AVEC LOGS ==========
-function extractClaimData(html, cookies) {
-  console.log('🔍 Début extraction des données de claim...');
-  
-  // Afficher tous les cookies reçus
-  console.log('🍪 Cookies reçus de FlareSolverr:');
-  cookies.forEach((c, i) => console.log(`   ${i+1}. ${c.name}=${c.value.substring(0,30)}...`));
-  
-  // Afficher début du HTML
-  console.log('📄 Début HTML faucet.php:');
-  console.log(html.substring(0, 800));
-  
-  const $ = cheerio.load(html);
-  
-  // Token CSRF : d'abord depuis les cookies
-  let csrfToken = cookies?.find(c => c.name === 'csrf_cookie_name')?.value;
-  if (!csrfToken) {
-    csrfToken = $('input[name="csrf_test_name"]').val() ||
-                $('input[name="_token"]').val() ||
-                $('input[name="csrf_token"]').val() ||
-                $('input[name="csrf-token"]').val() ||
-                $('meta[name="csrf-token"]').attr('content');
-  }
-  
-  // Hash et captcha
-  let hash = $('input[name="hash"]').val();
-  let captchaResponse = $('input[name="c_captcha_response"]').val();
-  
-  // Recherche élargie dans les scripts
-  if (!hash || !captchaResponse) {
-    const scripts = html.match(/<script[^>]*>([\s\S]*?)<\/script>/gi)?.join(' ') || '';
-    if (!hash) {
-      const m = scripts.match(/hash\s*[=:]\s*['"]([^'"]+)['"]/);
-      if (m) hash = m[1];
-    }
-    if (!captchaResponse) {
-      const m = scripts.match(/c_captcha_response\s*[=:]\s*['"]([^'"]+)['"]/);
-      if (m) captchaResponse = m[1];
-    }
-  }
-  
-  console.log(`🔑 Résultat extraction -> csrfToken: ${csrfToken ? 'trouvé' : 'MANQUANT'}, hash: ${hash ? 'trouvé' : 'MANQUANT'}, captchaResponse: ${captchaResponse ? 'trouvé' : 'MANQUANT'}`);
-  
-  return { csrfToken, hash, captchaResponse };
-}
-
 // ========== FONCTION PRINCIPALE ==========
 async function runClaim() {
   console.log(`🤖 Démarrage claim pour ${USER_ID}`);
   try {
+    // 1. Récupérer cookie
     const configPath = `configs/${USER_ID}.json`;
     const configContent = await getFileFromGitHub(configPath);
     if (!configContent) throw new Error(`Config non trouvée`);
     const config = JSON.parse(configContent);
     const sessionCookie = config.cookie;
     console.log(`🍪 Session chargée: ${sessionCookie.substring(0, 30)}...`);
-    
+
+    // 2. Charger faucet.php
     const faucetUrl = 'https://tronpick.io/faucet.php';
     console.log(`🌐 Chargement ${faucetUrl}`);
-    
+
     const pagePayload = {
       cmd: 'request.get',
       url: faucetUrl,
@@ -138,20 +94,56 @@ async function runClaim() {
         'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8'
       }
     };
-    
+
     const pageData = await callFlareSolverr(pagePayload);
     const pageHtml = pageData.solution.response;
     const pageCookies = pageData.solution.cookies;
-    
+
+    // 3. Sauvegarder le HTML et les cookies dans un fichier de debug
+    const debugData = {
+      timestamp: new Date().toISOString(),
+      url: faucetUrl,
+      cookies: pageCookies,
+      html: pageHtml
+    };
+    const debugPath = `debug/faucet_${USER_ID}_${Date.now()}.json`;
+    await saveFileToGitHub(debugPath, JSON.stringify(debugData, null, 2), `🔍 Debug faucet.php pour ${USER_ID}`);
+    console.log(`📁 Debug sauvegardé dans ${debugPath}`);
+
+    // 4. Tentative d'extraction
+    const $ = cheerio.load(pageHtml);
+    let csrfToken = pageCookies?.find(c => c.name === 'csrf_cookie_name')?.value;
+    if (!csrfToken) {
+      csrfToken = $('input[name="csrf_test_name"]').val() ||
+                  $('input[name="_token"]').val() ||
+                  $('input[name="csrf_token"]').val() ||
+                  $('meta[name="csrf-token"]').attr('content');
+    }
+    let hash = $('input[name="hash"]').val();
+    let captchaResponse = $('input[name="c_captcha_response"]').val();
+
+    if (!hash || !captchaResponse) {
+      const scripts = pageHtml.match(/<script[^>]*>([\s\S]*?)<\/script>/gi)?.join(' ') || '';
+      if (!hash) {
+        const m = scripts.match(/hash\s*[=:]\s*['"]([^'"]+)['"]/);
+        if (m) hash = m[1];
+      }
+      if (!captchaResponse) {
+        const m = scripts.match(/c_captcha_response\s*[=:]\s*['"]([^'"]+)['"]/);
+        if (m) captchaResponse = m[1];
+      }
+    }
+
+    console.log(`🔑 Extraction -> csrfToken: ${csrfToken ? 'OK' : 'MANQUANT'}, hash: ${hash ? 'OK' : 'MANQUANT'}, captcha: ${captchaResponse ? 'OK' : 'MANQUANT'}`);
+
+    if (!csrfToken) throw new Error('Token CSRF introuvable (voir debug)');
+    if (!hash) throw new Error('Hash introuvable (voir debug)');
+    if (!captchaResponse) throw new Error('c_captcha_response introuvable (voir debug)');
+
+    // 5. Claim
     const allCookies = pageCookies.map(c => `${c.name}=${c.value}`).join('; ');
     const combinedCookie = allCookies ? `${allCookies}; ${sessionCookie}` : sessionCookie;
-    
-    const { csrfToken, hash, captchaResponse } = extractClaimData(pageHtml, pageCookies);
-    
-    if (!csrfToken) throw new Error('Token CSRF introuvable');
-    if (!hash) throw new Error('Hash introuvable');
-    if (!captchaResponse) throw new Error('c_captcha_response introuvable');
-    
+
     const payload = new URLSearchParams();
     payload.append('action', 'claim_hourly_faucet');
     payload.append('hash', hash);
@@ -167,10 +159,10 @@ async function runClaim() {
     payload.append('pcaptcha_token', '');
     payload.append('ft', '');
     payload.append('csrf_test_name', csrfToken);
-    
+
     const claimUrl = 'https://tronpick.io/process.php';
     console.log(`📤 Envoi claim vers ${claimUrl}`);
-    
+
     const claimResData = await callFlareSolverr({
       cmd: 'request.post',
       url: claimUrl,
@@ -186,13 +178,13 @@ async function runClaim() {
       },
       postData: payload.toString()
     });
-    
+
     const claimStatus = claimResData.solution.status;
     const claimResponseBody = claimResData.solution.response;
     console.log(`📬 Réponse (${claimStatus}): ${claimResponseBody.substring(0, 300)}`);
-    
+
     const success = claimResponseBody.includes('success') || claimResponseBody.includes('claimed') || (claimStatus === 200 && claimResponseBody.length < 200);
-    
+
     const logEntry = {
       timestamp: new Date().toISOString(),
       success,
@@ -206,6 +198,7 @@ async function runClaim() {
     if (existingLog) logArray = JSON.parse(existingLog);
     logArray.push(logEntry);
     await saveFileToGitHub(logPath, JSON.stringify(logArray, null, 2), `🤖 Claim log for ${USER_ID}`);
+
     console.log(`✅ Claim ${success ? 'réussi' : 'échoué'}, log enregistré.`);
   } catch (error) {
     console.error('❌ Erreur bot:', error.message);
