@@ -1,7 +1,7 @@
 {
   "platform": "TronPick",
-  "cookie": "Test123",
+  "cookie": "tronpick_session=veb9uv3t4nmo87dshl; Path=/; HttpOnly; Secure; SameSite=Lax",
   "proxy": null,
   "timer": 60,
-  "updatedAt": "2026-04-21T05:41:04.841Z"
+  "updatedAt": "2026-04-21T05:48:37.983Z"
 }
