@@ -13,7 +13,6 @@ export default async function handler(req, res) {
   const FLARESOLVERR_URL = 'https://flaresolverr-wekb.onrender.com';
   const USER_AGENT = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36';
 
-  // Fonction utilitaire pour appeler FlareSolverr avec retry (réveil du service)
   async function callFlareSolverr(payload, retries = 2) {
     for (let i = 0; i < retries; i++) {
       try {
@@ -23,17 +22,12 @@ export default async function handler(req, res) {
           body: JSON.stringify(payload)
         });
         const data = await response.json();
-        if (!response.ok) {
-          throw new Error(`HTTP ${response.status}`);
-        }
-        if (data.status !== 'ok') {
-          throw new Error(`FlareSolverr status: ${data.message || 'unknown'}`);
-        }
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        if (data.status !== 'ok') throw new Error(`FlareSolverr status: ${data.message || 'unknown'}`);
         return data;
       } catch (err) {
         console.warn(`⚠️ Tentative ${i + 1}/${retries} échouée: ${err.message}`);
         if (i === retries - 1) throw err;
-        // Attendre 5 secondes avant de réessayer (temps de réveil)
         await new Promise(resolve => setTimeout(resolve, 5000));
       }
     }
@@ -41,12 +35,12 @@ export default async function handler(req, res) {
 
   try {
     let sessionCookie = null;
+    const debugInfo = {};
 
     if (platform === 'TronPick') {
       console.log('🚀 Début autologin TronPick');
 
-      // 1. Obtenir les cookies Cloudflare via FlareSolverr
-      console.log('📡 Appel FlareSolverr pour https://tronpick.io/login');
+      // Étape 1 : Obtenir la page de login via FlareSolverr
       const flarePayload = {
         cmd: 'request.get',
         url: 'https://tronpick.io/login',
@@ -57,91 +51,116 @@ export default async function handler(req, res) {
       }
 
       const flareData = await callFlareSolverr(flarePayload);
-      console.log('✅ Page login récupérée avec succès');
-
       const flareCookies = flareData.solution.cookies;
       const cookieString = flareCookies.map(c => `${c.name}=${c.value}`).join('; ');
-      console.log(`🍪 Cookies Cloudflare: ${flareCookies.length} cookie(s)`);
+      debugInfo.flareCookiesCount = flareCookies.length;
+      console.log(`🍪 Cookies Cloudflare: ${flareCookies.length}`);
 
-      // 2. Effectuer la connexion
-      // ⚠️ Ces valeurs sont des suppositions. Si 404 ou 400, on adaptera après inspection.
-      const loginUrl = 'https://tronpick.io/api/login';
-      const payload = {
-        email: email,
-        password: password,
-        remember: true
-      };
-
-      console.log(`🔑 Envoi requête POST vers ${loginUrl}`);
-      const loginRes = await fetch(loginUrl, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Cookie': cookieString,
-          'User-Agent': USER_AGENT,
-          'Referer': 'https://tronpick.io/login',
-          'Origin': 'https://tronpick.io',
-          'Accept': 'application/json, text/plain, */*'
+      // Étape 2 : Essayer plusieurs combinaisons d'URL et payload (les plus courantes)
+      const loginAttempts = [
+        {
+          url: 'https://tronpick.io/login',
+          payload: { email, password, remember: true },
+          headers: { 'Content-Type': 'application/json' }
         },
-        body: JSON.stringify(payload),
-        redirect: 'manual'
-      });
+        {
+          url: 'https://tronpick.io/api/login',
+          payload: { email, password, remember: true },
+          headers: { 'Content-Type': 'application/json' }
+        },
+        {
+          url: 'https://tronpick.io/login',
+          payload: `email=${encodeURIComponent(email)}&password=${encodeURIComponent(password)}&remember=1`,
+          headers: { 'Content-Type': 'application/x-www-form-urlencoded' }
+        },
+        {
+          url: 'https://tronpick.io/api/auth/login',
+          payload: { email, password },
+          headers: { 'Content-Type': 'application/json' }
+        }
+      ];
 
-      console.log(`📬 Réponse login: ${loginRes.status} ${loginRes.statusText}`);
+      let loginRes;
+      let successAttempt = null;
 
-      // 3. Extraire le cookie de session
-      const setCookieHeader = loginRes.headers.get('set-cookie');
-      if (setCookieHeader) {
-        console.log('🔎 Set-Cookie header présent');
-        // Recherche par patterns connus
-        const patterns = [
-          /(tronpick_session=[^;]+)/i,
-          /(session=[^;]+)/i,
-          /(laravel_session=[^;]+)/i,
-          /(PHPSESSID=[^;]+)/i
-        ];
-        for (const pattern of patterns) {
-          const match = setCookieHeader.match(pattern);
-          if (match) {
-            sessionCookie = match[1];
+      for (const attempt of loginAttempts) {
+        try {
+          console.log(`🔑 Essai POST ${attempt.url} (${attempt.headers['Content-Type']})`);
+          const res = await fetch(attempt.url, {
+            method: 'POST',
+            headers: {
+              ...attempt.headers,
+              'Cookie': cookieString,
+              'User-Agent': USER_AGENT,
+              'Referer': 'https://tronpick.io/login',
+              'Origin': 'https://tronpick.io',
+              'Accept': 'application/json, text/plain, */*'
+            },
+            body: typeof attempt.payload === 'string' ? attempt.payload : JSON.stringify(attempt.payload),
+            redirect: 'manual'
+          });
+          debugInfo.loginStatus = res.status;
+          debugInfo.loginUrl = attempt.url;
+          console.log(`📬 Réponse login: ${res.status} ${res.statusText}`);
+
+          // Vérifier si on a un cookie
+          const setCookie = res.headers.get('set-cookie');
+          if (setCookie) {
+            loginRes = res;
+            successAttempt = attempt;
+            console.log(`✅ Set-Cookie trouvé pour ${attempt.url}`);
             break;
           }
-        }
-        if (!sessionCookie) {
-          sessionCookie = setCookieHeader.split(';')[0];
-        }
-        console.log(`🍪 Cookie extrait: ${sessionCookie ? sessionCookie.substring(0, 30) + '...' : 'aucun'}`);
-      }
-
-      // Fallback : cookie dans le corps de la réponse (token)
-      if (!sessionCookie) {
-        try {
-          const clone = loginRes.clone();
-          const loginData = await clone.json();
-          if (loginData.token || loginData.access_token || loginData.session) {
-            const tokenVal = loginData.token || loginData.access_token || loginData.session;
-            sessionCookie = `token=${tokenVal}`;
-            console.log('🍪 Cookie extrait du corps JSON');
-          }
+          // Sinon, on continue
         } catch (e) {
-          console.log('ℹ️ Corps de réponse non JSON');
+          console.warn(`❌ Échec pour ${attempt.url}: ${e.message}`);
         }
       }
 
-      if (!sessionCookie) {
-        // Log de débogage : afficher les headers complets (sans données sensibles)
-        const headersList = [];
-        loginRes.headers.forEach((val, key) => headersList.push(`${key}: ${val}`));
-        console.log('📋 Headers reçus:', headersList);
-        throw new Error('Aucun cookie de session trouvé dans la réponse');
+      if (!loginRes || !successAttempt) {
+        throw new Error(`Aucune des ${loginAttempts.length} tentatives n'a retourné de cookie. Status: ${debugInfo.loginStatus || 'inconnu'}`);
       }
+
+      // Extraire le cookie
+      const setCookieHeader = loginRes.headers.get('set-cookie');
+      const patterns = [
+        /(tronpick_session=[^;]+)/i,
+        /(session=[^;]+)/i,
+        /(laravel_session=[^;]+)/i,
+        /(PHPSESSID=[^;]+)/i,
+        /(sid=[^;]+)/i,
+        /(auth=[^;]+)/i
+      ];
+      for (const pattern of patterns) {
+        const match = setCookieHeader.match(pattern);
+        if (match) {
+          sessionCookie = match[1];
+          break;
+        }
+      }
+      if (!sessionCookie) {
+        sessionCookie = setCookieHeader.split(';')[0];
+      }
+
+      if (!sessionCookie) {
+        // Dernier espoir : regarder dans le corps
+        const bodyText = await loginRes.text();
+        debugInfo.responseBody = bodyText.substring(0, 200);
+        const tokenMatch = bodyText.match(/"token":"([^"]+)"/) || bodyText.match(/"access_token":"([^"]+)"/);
+        if (tokenMatch) {
+          sessionCookie = `token=${tokenMatch[1]}`;
+        } else {
+          throw new Error('Aucun cookie ou token trouvé dans la réponse');
+        }
+      }
+
+      console.log(`🍪 Cookie final: ${sessionCookie.substring(0, 40)}...`);
 
     } else {
       return res.status(400).json({ error: `Plateforme "${platform}" non supportée` });
     }
 
-    console.log('✅ Autologin terminé avec succès');
-    return res.status(200).json({ success: true, cookie: sessionCookie });
+    return res.status(200).json({ success: true, cookie: sessionCookie, debug: debugInfo });
 
   } catch (error) {
     console.error('❌ Erreur autologin:', error.message);
