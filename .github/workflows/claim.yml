@@ -1,0 +1,36 @@
+name: Hourly Claim Bot
+
+on:
+  schedule:
+    # Exécute le bot toutes les heures à la minute 0
+    - cron: '0 * * * *'
+  # Permet de lancer manuellement le workflow depuis l'onglet Actions
+  workflow_dispatch:
+
+jobs:
+  claim:
+    runs-on: ubuntu-latest
+
+    steps:
+      # 1. Récupérer le code source du dépôt
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      # 2. Installer Node.js
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      # 3. Installer les dépendances (cheerio, octokit, dotenv)
+      - name: Install dependencies
+        run: |
+          npm install @octokit/rest cheerio dotenv
+
+      # 4. Exécuter le script du bot
+      - name: Run Claim Bot
+        env:
+          GH_TOKEN: ${{ secrets.GH_TOKEN }}
+          GITHUB_REPO_OWNER: Finoana123
+          GITHUB_REPO_NAME: Finoana-claim
+        run: node bot/claim-bot.js
