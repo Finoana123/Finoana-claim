@@ -1,143 +1,243 @@
 <!DOCTYPE html>
 <html lang="fr">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Dashboard - Finoana Auto Claim</title>
-
-<style>
-body { font-family: Arial; background:#f4f9ff; text-align:center; margin-top:40px; }
-h1 { color:#333; }
-form { background:white; padding:20px; border-radius:8px; width:420px; margin:auto; box-shadow:0 0 10px rgba(0,0,0,0.1); }
-input, select { width:90%; padding:10px; margin:10px 0; border:1px solid #ccc; border-radius:5px; }
-label { display:block; text-align:left; margin-left:5%; font-weight:bold; }
-button { padding:12px 25px; background:#28a745; color:white; border:none; border-radius:5px; font-size:16px; cursor:pointer; }
-button:hover { background:#218838; }
-.hidden { display:none; }
-</style>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Auto Claim - Finoana</title>
+  <style>
+    body {
+      font-family: 'Segoe UI', Arial, sans-serif;
+      background: #f4f9ff;
+      text-align: center;
+      margin: 40px 20px;
+    }
+    h1 {
+      color: #1e2a3a;
+      margin-bottom: 10px;
+    }
+    .subtitle {
+      color: #5e6f8c;
+      margin-bottom: 25px;
+      font-size: 14px;
+    }
+    form {
+      background: white;
+      padding: 25px 20px;
+      border-radius: 12px;
+      width: 100%;
+      max-width: 480px;
+      margin: 0 auto;
+      box-shadow: 0 10px 25px rgba(0,0,0,0.05);
+      text-align: left;
+    }
+    label {
+      display: block;
+      margin-top: 15px;
+      margin-bottom: 5px;
+      font-weight: 600;
+      color: #2c3e50;
+    }
+    input, select {
+      width: 100%;
+      padding: 12px 12px;
+      border: 1px solid #d0d9e8;
+      border-radius: 8px;
+      font-size: 14px;
+      background: #fafbfc;
+      box-sizing: border-box;
+    }
+    input:focus, select:focus {
+      border-color: #28a745;
+      outline: none;
+      box-shadow: 0 0 0 3px rgba(40,167,69,0.1);
+      background: white;
+    }
+    button {
+      width: 100%;
+      padding: 14px;
+      margin-top: 25px;
+      background: #28a745;
+      color: white;
+      border: none;
+      border-radius: 8px;
+      font-size: 16px;
+      font-weight: bold;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+    button:hover {
+      background: #218838;
+    }
+    .hidden {
+      display: none;
+    }
+    .info-note {
+      background: #eef6ff;
+      padding: 12px;
+      border-radius: 8px;
+      font-size: 13px;
+      color: #1e4d7c;
+      margin-bottom: 15px;
+      border-left: 4px solid #28a745;
+    }
+  </style>
 </head>
 <body>
 
-<h1>Finoana Auto Claim - Dashboard</h1>
+<h1>⚙️ Finoana Auto Claim</h1>
+<div class="subtitle">Configuration du bot de réclamation automatique</div>
 
 <form id="claimForm">
-  <label>Méthode de connexion</label>
+  <div class="info-note">
+    ⚡ Choisis une méthode de connexion. Les cookies seront sauvegardés dans ton dépôt GitHub privé.
+  </div>
+
+  <label for="method">🔐 Méthode de connexion</label>
   <select id="method" onchange="toggleMethod()">
     <option value="">-- Choisir une méthode --</option>
-    <option value="login">Via Login</option>
-    <option value="cookies">Via Cookies</option>
+    <option value="login">Via Login (Email + Mot de passe)</option>
+    <option value="cookies">Via Cookies (Cookie de session)</option>
   </select>
 
-  <!-- Champs Login -->
+  <!-- Bloc Login -->
   <div id="loginFields" class="hidden">
-    <label>Email</label>
-    <input type="email" id="email" placeholder="Votre email">
+    <label for="email">📧 Email</label>
+    <input type="email" id="email" placeholder="exemple@mail.com">
 
-    <label>Mot de passe</label>
-    <input type="password" id="password" placeholder="Votre mot de passe">
+    <label for="password">🔑 Mot de passe</label>
+    <input type="password" id="password" placeholder="••••••••">
 
-    <label>Bot Timer (minutes)</label>
-    <input type="number" id="timer" placeholder="60" min="1">
+    <label for="timer">⏱️ Timer (minutes)</label>
+    <input type="number" id="timer" placeholder="60" min="1" value="60">
 
-    <label>Choisir la plateforme</label>
+    <label for="platform">🎮 Plateforme</label>
     <select id="platform">
-      <option value="">-- Sélectionnez une plateforme --</option>
+      <option value="">-- Sélectionnez --</option>
       <option value="TronPick">TronPick</option>
       <option value="LitePick">LitePick</option>
       <option value="DogePick">DogePick</option>
       <option value="BTCpick">BTCpick</option>
     </select>
 
-    <label>Proxy</label>
-    <input type="text" id="proxy" placeholder="http://proxy:port">
+    <label for="proxy">🌐 Proxy (optionnel)</label>
+    <input type="text" id="proxy" placeholder="http://user:pass@ip:port">
   </div>
 
-  <!-- Champs Cookies -->
+  <!-- Bloc Cookies -->
   <div id="cookieFields" class="hidden">
-    <label>Cookie Value</label>
-    <input type="text" id="cookieValue" placeholder="Copiez votre cookie ici">
-    
-    <label>Bot Timer (minutes)</label>
-    <input type="number" id="timerCookie" placeholder="60" min="1">
+    <label for="cookieValue">🍪 Cookie de session</label>
+    <input type="text" id="cookieValue" placeholder="Colle ton cookie ici">
 
-    <label>Choisir la plateforme</label>
+    <label for="timerCookie">⏱️ Timer (minutes)</label>
+    <input type="number" id="timerCookie" placeholder="60" min="1" value="60">
+
+    <label for="platformCookie">🎮 Plateforme</label>
     <select id="platformCookie">
-      <option value="">-- Sélectionnez une plateforme --</option>
+      <option value="">-- Sélectionnez --</option>
       <option value="TronPick">TronPick</option>
       <option value="LitePick">LitePick</option>
       <option value="DogePick">DogePick</option>
       <option value="BTCpick">BTCpick</option>
     </select>
 
-    <label>Proxy</label>
-    <input type="text" id="proxyCookie" placeholder="http://proxy:port">
+    <label for="proxyCookie">🌐 Proxy (optionnel)</label>
+    <input type="text" id="proxyCookie" placeholder="http://user:pass@ip:port">
   </div>
 
-  <button type="button" onclick="saveSettings()">Sauvegarder</button>
+  <button type="button" onclick="saveSettings()">💾 Sauvegarder la configuration</button>
 </form>
 
-<script type="module">
-  import { initializeApp } from "https://www.gstatic.com/firebasejs/9.6.1/firebase-app.js";
-  import { getAuth } from "https://www.gstatic.com/firebasejs/9.6.1/firebase-auth.js";
-  import { getDatabase, ref, set } from "https://www.gstatic.com/firebasejs/9.6.1/firebase-database.js";
+<script>
+  // ---------- FONCTIONS GLOBALES ----------
+  window.toggleMethod = function() {
+    const method = document.getElementById('method').value;
+    document.getElementById('loginFields').classList.add('hidden');
+    document.getElementById('cookieFields').classList.add('hidden');
 
-  // ⚠️ Mets ici ta vraie configuration Firebase
-  const firebaseConfig = {
-    apiKey: "TON_API_KEY",
-    authDomain: "finoana-autoclaim.firebaseapp.com",
-    databaseURL: "https://finoana-autoclaim-default-rtdb.firebaseio.com/",
-    projectId: "finoana-autoclaim",
-    storageBucket: "finoana-autoclaim.appspot.com",
-    messagingSenderId: "TON_SENDER_ID",
-    appId: "TON_APP_ID"
+    if (method === 'login') {
+      document.getElementById('loginFields').classList.remove('hidden');
+    } else if (method === 'cookies') {
+      document.getElementById('cookieFields').classList.remove('hidden');
+    }
   };
 
-  const app = initializeApp(firebaseConfig);
-  const auth = getAuth(app);
-  const db = getDatabase(app);
+  window.saveSettings = async function() {
+    const method = document.getElementById('method').value;
+    
+    // Variables communes
+    let platform, timer, proxy, cookie = null;
+    let email = null, password = null;
 
-  // Fonction pour afficher les bons champs
-  window.toggleMethod = function(){
-    const method = document.getElementById("method").value;
-    document.getElementById("loginFields").classList.add("hidden");
-    document.getElementById("cookieFields").classList.add("hidden");
-
-    if(method === "login"){
-      document.getElementById("loginFields").classList.remove("hidden");
-    } else if(method === "cookies"){
-      document.getElementById("cookieFields").classList.remove("hidden");
-    }
-  }
-
-  // Sauvegarde dans Firebase
-  window.saveSettings = async function(){
-    const method = document.getElementById("method").value;
-    let settings = { method };
-
-    if(method === "login"){
-      settings.email = document.getElementById("email").value;
-      settings.password = document.getElementById("password").value;
-      settings.timer = document.getElementById("timer").value;
-      settings.platform = document.getElementById("platform").value;
-      settings.proxy = document.getElementById("proxy").value;
-    } else if(method === "cookies"){
-      settings.cookieValue = document.getElementById("cookieValue").value;
-      settings.timer = document.getElementById("timerCookie").value;
-      settings.platform = document.getElementById("platformCookie").value;
-      settings.proxy = document.getElementById("proxyCookie").value;
-    }
-
-    const user = auth.currentUser;
-    if(!user){
-      alert("⚠️ Vous devez être connecté !");
+    // Récupération selon la méthode
+    if (method === 'login') {
+      email = document.getElementById('email').value.trim();
+      password = document.getElementById('password').value;
+      timer = document.getElementById('timer').value;
+      platform = document.getElementById('platform').value;
+      proxy = document.getElementById('proxy').value.trim();
+    } else if (method === 'cookies') {
+      cookie = document.getElementById('cookieValue').value.trim();
+      timer = document.getElementById('timerCookie').value;
+      platform = document.getElementById('platformCookie').value;
+      proxy = document.getElementById('proxyCookie').value.trim();
+    } else {
+      alert('❌ Veuillez choisir une méthode de connexion.');
       return;
     }
 
-    const userId = user.uid;
-    await set(ref(db, "users/" + userId), settings);
+    // Vérifications de base
+    if (!platform) {
+      alert('❌ Veuillez sélectionner une plateforme.');
+      return;
+    }
 
-    alert("✅ Paramètres sauvegardés dans Firebase !");
-  }
+    // --- IDENTIFIANT UTILISATEUR (stocké localement) ---
+    let userId = localStorage.getItem('finoana_user_id');
+    if (!userId) {
+      userId = 'user_' + Math.random().toString(36).substring(2, 12);
+      localStorage.setItem('finoana_user_id', userId);
+    }
+
+    // --- GESTION DU COOKIE ---
+    let finalCookie = null;
+
+    if (method === 'cookies') {
+      if (!cookie) {
+        alert('❌ Veuillez entrer un cookie.');
+        return;
+      }
+      finalCookie = cookie;
+    } else {
+      // 🚧 L'autologin n'est pas encore implémenté
+      alert('⏳ La connexion automatique via email/password sera disponible prochainement.\nPour tester, utilise la méthode "Cookies".');
+      return;
+    }
+
+    // --- ENVOI VERS L'API DE SAUVEGARDE GITHUB ---
+    try {
+      const response = await fetch('/api/save-config', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          userId: userId,
+          platform: platform,
+          cookie: finalCookie,
+          proxy: proxy || null,
+          timer: parseInt(timer) || 60
+        })
+      });
+
+      const data = await response.json();
+      if (!response.ok) {
+        throw new Error(data.error || 'Erreur serveur');
+      }
+
+      alert(`✅ Configuration sauvegardée avec succès !\n📁 Fichier : configs/${userId}.json`);
+    } catch (error) {
+      console.error('Erreur:', error);
+      alert('❌ Échec de la sauvegarde : ' + error.message);
+    }
+  };
 </script>
 
 </body>
