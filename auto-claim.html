@@ -5,24 +5,15 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Auto Claim - Finoana</title>
   <style>
-    * {
-      box-sizing: border-box;
-    }
+    * { box-sizing: border-box; }
     body {
       font-family: 'Segoe UI', Arial, sans-serif;
       background: #f4f9ff;
       text-align: center;
       margin: 40px 20px;
     }
-    h1 {
-      color: #1e2a3a;
-      margin-bottom: 10px;
-    }
-    .subtitle {
-      color: #5e6f8c;
-      margin-bottom: 25px;
-      font-size: 14px;
-    }
+    h1 { color: #1e2a3a; margin-bottom: 10px; }
+    .subtitle { color: #5e6f8c; margin-bottom: 25px; font-size: 14px; }
     form {
       background: white;
       padding: 25px 20px;
@@ -42,12 +33,11 @@
     }
     input, select {
       width: 100%;
-      padding: 12px 12px;
+      padding: 12px;
       border: 1px solid #d0d9e8;
       border-radius: 8px;
       font-size: 14px;
       background: #fafbfc;
-      transition: 0.2s;
     }
     input:focus, select:focus {
       border-color: #28a745;
@@ -66,18 +56,10 @@
       font-size: 16px;
       font-weight: bold;
       cursor: pointer;
-      transition: background 0.2s;
     }
-    button:hover {
-      background: #218838;
-    }
-    button:disabled {
-      background: #86c78e;
-      cursor: not-allowed;
-    }
-    .hidden {
-      display: none;
-    }
+    button:hover { background: #218838; }
+    button:disabled { background: #86c78e; cursor: not-allowed; }
+    .hidden { display: none; }
     .info-note {
       background: #eef6ff;
       padding: 12px;
@@ -162,7 +144,17 @@
 </form>
 
 <script>
-  // ---------- FONCTIONS GLOBALES ----------
+  // ----- Initialisation : s'assurer que userId existe -----
+  function getUserId() {
+    let uid = localStorage.getItem('finoana_user_id');
+    if (!uid) {
+      uid = 'user_' + Math.random().toString(36).substring(2, 12);
+      localStorage.setItem('finoana_user_id', uid);
+    }
+    return uid;
+  }
+
+  // ----- UI : afficher/masquer les champs -----
   window.toggleMethod = function() {
     const method = document.getElementById('method').value;
     document.getElementById('loginFields').classList.add('hidden');
@@ -175,20 +167,22 @@
     document.getElementById('statusMsg').textContent = '';
   };
 
-  function setStatus(message, isError = false) {
-    const statusEl = document.getElementById('statusMsg');
-    statusEl.textContent = message;
-    statusEl.style.color = isError ? '#dc3545' : '#28a745';
+  function setStatus(msg, isError = false) {
+    const el = document.getElementById('statusMsg');
+    el.textContent = msg;
+    el.style.color = isError ? '#dc3545' : '#28a745';
   }
 
+  // ----- Sauvegarde principale -----
   window.saveSettings = async function() {
     const method = document.getElementById('method').value;
     const saveBtn = document.getElementById('saveBtn');
     const originalText = saveBtn.textContent;
     setStatus('');
 
-    let platform, timer, proxy, cookie = null;
-    let email = null, password = null;
+    // Récupération des valeurs
+    let email = null, password = null, cookie = null;
+    let platform, timer, proxy;
 
     if (method === 'login') {
       email = document.getElementById('email').value.trim();
@@ -206,100 +200,86 @@
       return;
     }
 
+    // Validation basique
     if (!platform) {
       alert('❌ Veuillez sélectionner une plateforme.');
       return;
     }
 
-    // ID utilisateur (localStorage)
-    let userId = localStorage.getItem('finoana_user_id');
-    if (!userId) {
-      userId = 'user_' + Math.random().toString(36).substring(2, 12);
-      localStorage.setItem('finoana_user_id', userId);
-    }
+    // Récupération userId (garanti)
+    const userId = getUserId();
+    console.log('📌 userId utilisé :', userId);
 
     let finalCookie = null;
     let claimInfo = null;
 
     try {
       if (method === 'cookies') {
-        if (!cookie) {
-          alert('❌ Veuillez entrer un cookie.');
-          return;
-        }
+        if (!cookie) throw new Error('Cookie manquant');
         finalCookie = cookie;
         setStatus('🍪 Cookie manuel prêt pour la sauvegarde...');
-      } else if (method === 'login') {
-        if (!email || !password) {
-          alert('❌ Veuillez saisir email et mot de passe.');
-          return;
-        }
+      } else {
+        // Login
+        if (!email || !password) throw new Error('Email et mot de passe requis');
 
         saveBtn.disabled = true;
         saveBtn.textContent = '🔄 Authentification + Claim en cours...';
         setStatus(`Connexion à ${platform} avec ${email}... (peut prendre 30s)`);
 
-        // Appel à l'API qui fait login + claim
-        const loginResponse = await fetch('/api/autologin', {
+        // Préparation du corps de la requête
+        const payload = {
+          email, password, platform,
+          proxy: proxy || null,
+          userId
+        };
+        console.log('📤 Envoi à /api/autologin :', payload);
+
+        const loginResp = await fetch('/api/autologin', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            email: email,
-            password: password,
-            platform: platform,
-            proxy: proxy || null,
-            userId: userId
-          })
+          body: JSON.stringify(payload)
         });
 
-        const loginData = await loginResponse.json();
-        if (!loginResponse.ok) {
-          throw new Error(loginData.error || 'Échec de l\'authentification');
+        const loginData = await loginResp.json();
+        if (!loginResp.ok) {
+          throw new Error(loginData.error || 'Échec authentification');
         }
 
         finalCookie = loginData.cookie;
         claimInfo = loginData.claim;
 
-        if (claimInfo && claimInfo.success) {
-          setStatus(`✅ Login + Claim réussis ! Cookie récupéré.`);
-        } else if (claimInfo) {
-          setStatus(`✅ Login OK, mais claim échoué : ${claimInfo.message}`, true);
+        if (claimInfo?.success) {
+          setStatus('✅ Login + Claim réussis !');
         } else {
-          setStatus(`✅ Login OK, cookie récupéré (claim non tenté).`);
+          setStatus(`✅ Login OK, claim : ${claimInfo?.message || 'non tenté'}`, !claimInfo?.success);
         }
       }
 
-      // Sauvegarde du cookie dans GitHub
-      setStatus((claimInfo && claimInfo.success) ? '💾 Sauvegarde du cookie dans GitHub...' : '💾 Sauvegarde dans GitHub...');
-      
-      const saveResponse = await fetch('/api/save-config', {
+      // Sauvegarde GitHub
+      setStatus('💾 Sauvegarde dans GitHub...');
+      const saveResp = await fetch('/api/save-config', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          userId: userId,
-          platform: platform,
+          userId, platform,
           cookie: finalCookie,
           proxy: proxy || null,
           timer: parseInt(timer) || 60
         })
       });
 
-      const saveData = await saveResponse.json();
-      if (!saveResponse.ok) {
-        throw new Error(saveData.error || 'Erreur lors de la sauvegarde');
-      }
+      const saveData = await saveResp.json();
+      if (!saveResp.ok) throw new Error(saveData.error || 'Erreur sauvegarde');
 
-      let successMsg = `✅ Configuration sauvegardée avec succès !\n📁 Fichier : configs/${userId}.json`;
-      if (claimInfo) {
-        successMsg += `\n🎁 Claim : ${claimInfo.success ? 'Réussi' : 'Échoué'}`;
-      }
-      alert(successMsg);
-      setStatus(successMsg.replace(/\n/g, ' '));
+      let msg = `✅ Config sauvegardée (configs/${userId}.json)`;
+      if (claimInfo) msg += `\n🎁 Claim : ${claimInfo.success ? 'Réussi' : 'Échoué'}`;
+      alert(msg);
+      setStatus(msg.replace(/\n/g, ' — '));
 
-    } catch (error) {
-      console.error('Erreur:', error);
-      setStatus(`❌ ${error.message}`, true);
-      alert('❌ Erreur : ' + error.message);
+    } catch (err) {
+      console.error(err);
+      setStatus(`❌ ${err.message}`, true);
+      alert('❌ Erreur : ' + err.message);
     } finally {
       saveBtn.disabled = false;
       saveBtn.textContent = originalText;
