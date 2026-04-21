@@ -7,9 +7,12 @@ import 'dotenv/config';
 const FLARESOLVERR_URL = 'https://flaresolverr-wekb.onrender.com';
 const USER_AGENT = 'Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/116.0.0.0 Mobile Safari/537.36';
 const PLATFORM = 'TronPick';
-const USER_ID = 'user_g5ro565mil'; // ⚠️ Adapte avec l'ID exact si nécessaire
+const USER_ID = 'user_g5ro565mil'; // À adapter si nécessaire
 
-// Variables d'environnement (fournies par GitHub Actions)
+// ⚠️ PROXY SOCKS5 (le même que pour l'autologin)
+const PROXY_URL = 'socks5://Finoana123-US:Finoana123@198.23.239.134:6540';
+
+// Variables d'environnement
 const GITHUB_TOKEN = process.env.GH_TOKEN;
 const REPO_OWNER = process.env.GITHUB_REPO_OWNER;
 const REPO_NAME = process.env.GITHUB_REPO_NAME;
@@ -17,24 +20,30 @@ const BRANCH = 'main';
 
 const octokit = new Octokit({ auth: GITHUB_TOKEN });
 
-// ========== FONCTION FLARESOLVERR ROBUSTE ==========
+// ========== FONCTION FLARESOLVERR AVEC PROXY ==========
 async function callFlareSolverr(payload, retries = 5) {
-  // Pré-chauffage : réveiller le service Render
+  // Pré-chauffage
   try {
     await fetch(FLARESOLVERR_URL, { signal: AbortSignal.timeout(10000) });
   } catch {}
 
+  // Ajouter le proxy au payload FlareSolverr
+  const payloadWithProxy = {
+    ...payload,
+    proxy: { url: PROXY_URL }
+  };
+
   for (let i = 0; i < retries; i++) {
     try {
-      console.log(`📡 Appel FlareSolverr (tentative ${i + 1}/${retries})`);
+      console.log(`📡 Appel FlareSolverr avec proxy (tentative ${i + 1}/${retries})`);
       
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 180000); // 3 minutes
+      const timeoutId = setTimeout(() => controller.abort(), 180000);
       
       const response = await fetch(`${FLARESOLVERR_URL}/v1`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
+        body: JSON.stringify(payloadWithProxy),
         signal: controller.signal
       });
       
@@ -47,12 +56,12 @@ async function callFlareSolverr(payload, retries = 5) {
       
       const text = await response.text();
       if (!text || text.trim() === '') {
-        throw new Error('Réponse vide de FlareSolverr');
+        throw new Error('Réponse vide');
       }
       
       const data = JSON.parse(text);
       if (data.status !== 'ok') {
-        throw new Error(data.message || 'FlareSolverr status non-ok');
+        throw new Error(data.message || 'Status non-ok');
       }
       
       return data;
@@ -60,7 +69,7 @@ async function callFlareSolverr(payload, retries = 5) {
     } catch (err) {
       console.warn(`⚠️ Tentative ${i + 1} échouée: ${err.message}`);
       if (i === retries - 1) throw err;
-      const waitTime = 10000 * (i + 1); // 10s, 20s, 30s...
+      const waitTime = 10000 * (i + 1);
       console.log(`⏳ Nouvelle tentative dans ${waitTime / 1000}s...`);
       await new Promise(r => setTimeout(r, waitTime));
     }
@@ -107,22 +116,19 @@ async function saveFileToGitHub(path, content, message) {
   });
 }
 
-// ========== EXTRACTION DES DONNÉES DE CLAIM ==========
+// ========== EXTRACTION DES DONNÉES ==========
 function extractClaimData(html, cookies) {
   const $ = cheerio.load(html);
   
-  // Token CSRF
   let csrfToken = cookies?.find(c => c.name === 'csrf_cookie_name')?.value;
   if (!csrfToken) {
     csrfToken = $('input[name="csrf_test_name"]').val() ||
                 $('meta[name="csrf-token"]').attr('content');
   }
   
-  // Hash et captcha_response
   let hash = $('input[name="hash"]').val();
   let captchaResponse = $('input[name="c_captcha_response"]').val();
   
-  // Fallback dans les scripts JS
   if (!hash || !captchaResponse) {
     const scriptContent = html.match(/<script[^>]*>([\s\S]*?)<\/script>/gi)?.join(' ') || '';
     if (!hash) {
@@ -140,10 +146,10 @@ function extractClaimData(html, cookies) {
 
 // ========== FONCTION PRINCIPALE ==========
 async function runClaim() {
-  console.log(`🤖 Démarrage du claim pour ${USER_ID} sur ${PLATFORM}`);
+  console.log(`🤖 Démarrage du claim pour ${USER_ID} sur ${PLATFORM} avec proxy`);
   
   try {
-    // 1. Récupérer le cookie de session depuis configs/
+    // 1. Récupérer le cookie de session
     const configPath = `configs/${USER_ID}.json`;
     const configContent = await getFileFromGitHub(configPath);
     if (!configContent) throw new Error(`Config non trouvée pour ${USER_ID}`);
@@ -151,7 +157,7 @@ async function runClaim() {
     const sessionCookie = config.cookie;
     console.log(`🍪 Session chargée: ${sessionCookie.substring(0, 30)}...`);
     
-    // 2. Charger la page faucet via FlareSolverr
+    // 2. Charger la page faucet via FlareSolverr + proxy
     const faucetUrl = 'https://tronpick.io/faucet.php';
     console.log(`🌐 Chargement de ${faucetUrl}`);
     
@@ -170,11 +176,10 @@ async function runClaim() {
     const pageHtml = pageData.solution.response;
     const pageCookies = pageData.solution.cookies;
     
-    // Fusionner les cookies
     const allCookies = pageCookies.map(c => `${c.name}=${c.value}`).join('; ');
     const combinedCookie = allCookies ? `${allCookies}; ${sessionCookie}` : sessionCookie;
     
-    // 3. Extraire les données nécessaires
+    // 3. Extraire les données
     const { csrfToken, hash, captchaResponse } = extractClaimData(pageHtml, pageCookies);
     
     if (!csrfToken) throw new Error('Token CSRF introuvable');
@@ -185,7 +190,7 @@ async function runClaim() {
     console.log(`🔖 Hash: ${hash}`);
     console.log(`🤖 Captcha: ${captchaResponse.substring(0, 30)}...`);
     
-    // 4. Construire le payload exact (identique à la capture)
+    // 4. Construire le payload
     const payload = new URLSearchParams();
     payload.append('action', 'claim_hourly_faucet');
     payload.append('hash', hash);
