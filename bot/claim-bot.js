@@ -8,7 +8,7 @@ const FLARESOLVERR_URL = 'https://flaresolverr-wekb.onrender.com';
 const USER_AGENT = 'Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/116.0.0.0 Mobile Safari/537.36';
 const PLATFORM = 'TronPick';
 const USER_ID = 'user_g5ro565mil';
-const PROXY_URL = 'http://Finoana123:Finoana123@198.23.239.134:6540';
+const PROXY_URL = 'socks5://Finoana123-US:Finoana123@198.23.239.134:6540';
 
 const GITHUB_TOKEN = process.env.GH_TOKEN;
 const REPO_OWNER = process.env.GITHUB_REPO_OWNER;
