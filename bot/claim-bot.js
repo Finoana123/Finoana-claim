@@ -7,8 +7,9 @@ import 'dotenv/config';
 const FLARESOLVERR_URL = 'https://flaresolverr-wekb.onrender.com';
 const USER_AGENT = 'Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/116.0.0.0 Mobile Safari/537.36';
 const PLATFORM = 'TronPick';
-const USER_ID = 'user_g5ro565mil'; // À adapter si besoin
+const USER_ID = 'user_g5ro565mil'; // ⚠️ Adapte avec l'ID exact si nécessaire
 
+// Variables d'environnement (fournies par GitHub Actions)
 const GITHUB_TOKEN = process.env.GH_TOKEN;
 const REPO_OWNER = process.env.GITHUB_REPO_OWNER;
 const REPO_NAME = process.env.GITHUB_REPO_NAME;
@@ -16,16 +17,19 @@ const BRANCH = 'main';
 
 const octokit = new Octokit({ auth: GITHUB_TOKEN });
 
-// ========== FONCTIONS UTILITAIRES ==========
+// ========== FONCTION FLARESOLVERR ROBUSTE ==========
+async function callFlareSolverr(payload, retries = 5) {
+  // Pré-chauffage : réveiller le service Render
+  try {
+    await fetch(FLARESOLVERR_URL, { signal: AbortSignal.timeout(10000) });
+  } catch {}
 
-// Appeler FlareSolverr avec retry intelligent
-async function callFlareSolverr(payload, retries = 3) {
   for (let i = 0; i < retries; i++) {
     try {
       console.log(`📡 Appel FlareSolverr (tentative ${i + 1}/${retries})`);
       
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 120000); // 2 minutes max
+      const timeoutId = setTimeout(() => controller.abort(), 180000); // 3 minutes
       
       const response = await fetch(`${FLARESOLVERR_URL}/v1`, {
         method: 'POST',
@@ -36,7 +40,6 @@ async function callFlareSolverr(payload, retries = 3) {
       
       clearTimeout(timeoutId);
       
-      // Vérifier que la réponse est correcte avant de parser le JSON
       if (!response.ok) {
         const text = await response.text();
         throw new Error(`HTTP ${response.status}: ${text.substring(0, 100)}`);
@@ -57,14 +60,14 @@ async function callFlareSolverr(payload, retries = 3) {
     } catch (err) {
       console.warn(`⚠️ Tentative ${i + 1} échouée: ${err.message}`);
       if (i === retries - 1) throw err;
-      // Attendre de plus en plus longtemps entre chaque tentative
-      const waitTime = 5000 * (i + 1);
+      const waitTime = 10000 * (i + 1); // 10s, 20s, 30s...
       console.log(`⏳ Nouvelle tentative dans ${waitTime / 1000}s...`);
       await new Promise(r => setTimeout(r, waitTime));
     }
   }
 }
 
+// ========== GITHUB HELPERS ==========
 async function getFileFromGitHub(path) {
   try {
     const { data } = await octokit.repos.getContent({
@@ -104,18 +107,22 @@ async function saveFileToGitHub(path, content, message) {
   });
 }
 
+// ========== EXTRACTION DES DONNÉES DE CLAIM ==========
 function extractClaimData(html, cookies) {
   const $ = cheerio.load(html);
   
+  // Token CSRF
   let csrfToken = cookies?.find(c => c.name === 'csrf_cookie_name')?.value;
   if (!csrfToken) {
     csrfToken = $('input[name="csrf_test_name"]').val() ||
                 $('meta[name="csrf-token"]').attr('content');
   }
   
+  // Hash et captcha_response
   let hash = $('input[name="hash"]').val();
   let captchaResponse = $('input[name="c_captcha_response"]').val();
   
+  // Fallback dans les scripts JS
   if (!hash || !captchaResponse) {
     const scriptContent = html.match(/<script[^>]*>([\s\S]*?)<\/script>/gi)?.join(' ') || '';
     if (!hash) {
@@ -136,7 +143,7 @@ async function runClaim() {
   console.log(`🤖 Démarrage du claim pour ${USER_ID} sur ${PLATFORM}`);
   
   try {
-    // 1. Récupérer le cookie de session
+    // 1. Récupérer le cookie de session depuis configs/
     const configPath = `configs/${USER_ID}.json`;
     const configContent = await getFileFromGitHub(configPath);
     if (!configContent) throw new Error(`Config non trouvée pour ${USER_ID}`);
@@ -163,10 +170,11 @@ async function runClaim() {
     const pageHtml = pageData.solution.response;
     const pageCookies = pageData.solution.cookies;
     
+    // Fusionner les cookies
     const allCookies = pageCookies.map(c => `${c.name}=${c.value}`).join('; ');
     const combinedCookie = allCookies ? `${allCookies}; ${sessionCookie}` : sessionCookie;
     
-    // 3. Extraire les données
+    // 3. Extraire les données nécessaires
     const { csrfToken, hash, captchaResponse } = extractClaimData(pageHtml, pageCookies);
     
     if (!csrfToken) throw new Error('Token CSRF introuvable');
@@ -177,7 +185,7 @@ async function runClaim() {
     console.log(`🔖 Hash: ${hash}`);
     console.log(`🤖 Captcha: ${captchaResponse.substring(0, 30)}...`);
     
-    // 4. Construire le payload
+    // 4. Construire le payload exact (identique à la capture)
     const payload = new URLSearchParams();
     payload.append('action', 'claim_hourly_faucet');
     payload.append('hash', hash);
