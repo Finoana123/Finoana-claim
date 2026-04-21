@@ -5,6 +5,9 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Auto Claim - Finoana</title>
   <style>
+    * {
+      box-sizing: border-box;
+    }
     body {
       font-family: 'Segoe UI', Arial, sans-serif;
       background: #f4f9ff;
@@ -44,7 +47,7 @@
       border-radius: 8px;
       font-size: 14px;
       background: #fafbfc;
-      box-sizing: border-box;
+      transition: 0.2s;
     }
     input:focus, select:focus {
       border-color: #28a745;
@@ -68,6 +71,10 @@
     button:hover {
       background: #218838;
     }
+    button:disabled {
+      background: #86c78e;
+      cursor: not-allowed;
+    }
     .hidden {
       display: none;
     }
@@ -80,6 +87,11 @@
       margin-bottom: 15px;
       border-left: 4px solid #28a745;
     }
+    .status-message {
+      margin-top: 15px;
+      font-size: 14px;
+      min-height: 20px;
+    }
   </style>
 </head>
 <body>
@@ -89,7 +101,8 @@
 
 <form id="claimForm">
   <div class="info-note">
-    ⚡ Choisis une méthode de connexion. Les cookies seront sauvegardés dans ton dépôt GitHub privé.
+    ⚡ <strong>Test :</strong> Pour la méthode Login, utilise <strong>TronPick</strong> (simulation active).<br>
+    Les cookies seront sauvegardés dans ton dépôt GitHub privé.
   </div>
 
   <label for="method">🔐 Méthode de connexion</label>
@@ -102,10 +115,10 @@
   <!-- Bloc Login -->
   <div id="loginFields" class="hidden">
     <label for="email">📧 Email</label>
-    <input type="email" id="email" placeholder="exemple@mail.com">
+    <input type="email" id="email" placeholder="exemple@mail.com" autocomplete="email">
 
     <label for="password">🔑 Mot de passe</label>
-    <input type="password" id="password" placeholder="••••••••">
+    <input type="password" id="password" placeholder="••••••••" autocomplete="off">
 
     <label for="timer">⏱️ Timer (minutes)</label>
     <input type="number" id="timer" placeholder="60" min="1" value="60">
@@ -113,10 +126,10 @@
     <label for="platform">🎮 Plateforme</label>
     <select id="platform">
       <option value="">-- Sélectionnez --</option>
-      <option value="TronPick">TronPick</option>
-      <option value="LitePick">LitePick</option>
-      <option value="DogePick">DogePick</option>
-      <option value="BTCpick">BTCpick</option>
+      <option value="TronPick">TronPick (test simulé)</option>
+      <option value="LitePick">LitePick (bientôt)</option>
+      <option value="DogePick">DogePick (bientôt)</option>
+      <option value="BTCpick">BTCpick (bientôt)</option>
     </select>
 
     <label for="proxy">🌐 Proxy (optionnel)</label>
@@ -144,11 +157,14 @@
     <input type="text" id="proxyCookie" placeholder="http://user:pass@ip:port">
   </div>
 
-  <button type="button" onclick="saveSettings()">💾 Sauvegarder la configuration</button>
+  <button type="button" id="saveBtn" onclick="saveSettings()">💾 Sauvegarder la configuration</button>
+  <div id="statusMsg" class="status-message"></div>
 </form>
 
 <script>
   // ---------- FONCTIONS GLOBALES ----------
+  
+  // Affiche/masque les champs selon la méthode choisie
   window.toggleMethod = function() {
     const method = document.getElementById('method').value;
     document.getElementById('loginFields').classList.add('hidden');
@@ -159,16 +175,30 @@
     } else if (method === 'cookies') {
       document.getElementById('cookieFields').classList.remove('hidden');
     }
+    // Effacer le message de statut
+    document.getElementById('statusMsg').textContent = '';
   };
 
+  // Fonction utilitaire pour afficher des messages temporaires
+  function setStatus(message, isError = false) {
+    const statusEl = document.getElementById('statusMsg');
+    statusEl.textContent = message;
+    statusEl.style.color = isError ? '#dc3545' : '#28a745';
+  }
+
+  // Fonction principale de sauvegarde
   window.saveSettings = async function() {
     const method = document.getElementById('method').value;
+    const saveBtn = document.getElementById('saveBtn');
+    const originalText = saveBtn.textContent;
     
-    // Variables communes
+    // Réinitialiser le message
+    setStatus('');
+
+    // Récupération des champs communs et spécifiques
     let platform, timer, proxy, cookie = null;
     let email = null, password = null;
 
-    // Récupération selon la méthode
     if (method === 'login') {
       email = document.getElementById('email').value.trim();
       password = document.getElementById('password').value;
@@ -185,7 +215,7 @@
       return;
     }
 
-    // Vérifications de base
+    // Vérifications
     if (!platform) {
       alert('❌ Veuillez sélectionner une plateforme.');
       return;
@@ -201,21 +231,54 @@
     // --- GESTION DU COOKIE ---
     let finalCookie = null;
 
-    if (method === 'cookies') {
-      if (!cookie) {
-        alert('❌ Veuillez entrer un cookie.');
-        return;
-      }
-      finalCookie = cookie;
-    } else {
-      // 🚧 L'autologin n'est pas encore implémenté
-      alert('⏳ La connexion automatique via email/password sera disponible prochainement.\nPour tester, utilise la méthode "Cookies".');
-      return;
-    }
-
-    // --- ENVOI VERS L'API DE SAUVEGARDE GITHUB ---
     try {
-      const response = await fetch('/api/save-config', {
+      if (method === 'cookies') {
+        if (!cookie) {
+          alert('❌ Veuillez entrer un cookie.');
+          return;
+        }
+        finalCookie = cookie;
+        setStatus('🍪 Cookie manuel prêt pour la sauvegarde...');
+      } 
+      else if (method === 'login') {
+        // Vérifier les champs login
+        if (!email || !password) {
+          alert('❌ Veuillez saisir email et mot de passe.');
+          return;
+        }
+
+        // Désactiver le bouton et afficher le chargement
+        saveBtn.disabled = true;
+        saveBtn.textContent = '🔄 Authentification en cours...';
+        setStatus(`Connexion à ${platform} avec ${email}...`);
+
+        // Appel à l'API autologin
+        const loginResponse = await fetch('/api/autologin', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            email: email,
+            password: password,
+            platform: platform,
+            proxy: proxy || null
+          })
+        });
+
+        const loginData = await loginResponse.json();
+        if (!loginResponse.ok) {
+          throw new Error(loginData.error || 'Échec de l\'authentification');
+        }
+
+        finalCookie = loginData.cookie;
+        if (!finalCookie) {
+          throw new Error('Aucun cookie reçu du serveur');
+        }
+        
+        setStatus('✅ Authentification réussie, cookie récupéré. Sauvegarde en cours...');
+      }
+
+      // --- SAUVEGARDE VIA L'API GITHUB ---
+      const saveResponse = await fetch('/api/save-config', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -227,15 +290,23 @@
         })
       });
 
-      const data = await response.json();
-      if (!response.ok) {
-        throw new Error(data.error || 'Erreur serveur');
+      const saveData = await saveResponse.json();
+      if (!saveResponse.ok) {
+        throw new Error(saveData.error || 'Erreur lors de la sauvegarde');
       }
 
+      // Succès complet
+      setStatus(`🎉 Configuration sauvegardée ! Fichier : configs/${userId}.json`);
       alert(`✅ Configuration sauvegardée avec succès !\n📁 Fichier : configs/${userId}.json`);
+
     } catch (error) {
       console.error('Erreur:', error);
-      alert('❌ Échec de la sauvegarde : ' + error.message);
+      setStatus(`❌ ${error.message}`, true);
+      alert('❌ Erreur : ' + error.message);
+    } finally {
+      // Réactiver le bouton
+      saveBtn.disabled = false;
+      saveBtn.textContent = originalText;
     }
   };
 </script>
