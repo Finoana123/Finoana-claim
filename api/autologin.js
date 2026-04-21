@@ -10,8 +10,8 @@ export default async function handler(req, res) {
   }
 
   // ⚠️ REMPLACE par ta clé API Browserless
-  const BROWSERLESS_API_KEY = '2UIkOrNzStgIC7Sf8d1f7cd0e36c465cc9ecf3586f0f00b27';
-  const BROWSERLESS_URL = `https://chrome.browserless.io?token=${BROWSERLESS_API_KEY}`;
+  const BROWSERLESS_API_KEY = '2UNOrIFUI3VKtOb3c74a76935a0b4c0ba22bfd1387c6dcbcf';
+  const BROWSERLESS_URL = `https://chrome.browserless.io/function?token=${BROWSERLESS_API_KEY}`;
 
   // Script exécuté dans le navigateur cloud
   const puppeteerScript = async ({ email, password, proxy }) => {
@@ -80,7 +80,7 @@ export default async function handler(req, res) {
   };
 
   try {
-    // Appel à Browserless
+    // Appel à Browserless (endpoint /function)
     const response = await fetch(BROWSERLESS_URL, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -90,13 +90,21 @@ export default async function handler(req, res) {
       })
     });
 
-    const data = await response.json();
+    // Browserless renvoie directement le résultat ou une erreur JSON
+    const text = await response.text();
+    let data;
+    try {
+      data = JSON.parse(text);
+    } catch (e) {
+      throw new Error(`Réponse non-JSON de Browserless: ${text.substring(0, 100)}`);
+    }
+
     if (!response.ok) {
-      throw new Error(data.error || 'Erreur Browserless');
+      throw new Error(data.error || `Erreur HTTP ${response.status}`);
     }
 
     // Renvoyer le cookie au frontend
-    return res.status(200).json(data.result);
+    return res.status(200).json(data.result || data);
 
   } catch (error) {
     console.error('Erreur autologin:', error.message);
