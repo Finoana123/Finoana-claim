@@ -1,1 +1,7 @@
-
+{
+  "platform": "TronPick",
+  "cookie": "token=beef6b4dc37d4a28bd3f25cde5b6c468",
+  "proxy": "socks5://Finoana123-US:Finoana123@23.26.71.145:5628",
+  "timer": 60,
+  "updatedAt": "2026-04-21T10:41:29.410Z"
+}
