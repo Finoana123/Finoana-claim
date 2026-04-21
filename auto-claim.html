@@ -13,14 +13,15 @@
       margin: 40px 20px;
     }
     h1 { color: #1e2a3a; margin-bottom: 10px; }
+    h3 { color: #1e2a3a; margin: 20px 0 10px; }
     .subtitle { color: #5e6f8c; margin-bottom: 25px; font-size: 14px; }
-    form {
+    form, .test-block {
       background: white;
       padding: 25px 20px;
       border-radius: 12px;
       width: 100%;
       max-width: 480px;
-      margin: 0 auto;
+      margin: 0 auto 20px;
       box-shadow: 0 10px 25px rgba(0,0,0,0.05);
       text-align: left;
     }
@@ -38,6 +39,7 @@
       border-radius: 8px;
       font-size: 14px;
       background: #fafbfc;
+      transition: 0.2s;
     }
     input:focus, select:focus {
       border-color: #28a745;
@@ -56,9 +58,16 @@
       font-size: 16px;
       font-weight: bold;
       cursor: pointer;
+      transition: background 0.2s;
     }
     button:hover { background: #218838; }
     button:disabled { background: #86c78e; cursor: not-allowed; }
+    .btn-blue {
+      background: #007bff;
+    }
+    .btn-blue:hover {
+      background: #0069d9;
+    }
     .hidden { display: none; }
     .info-note {
       background: #eef6ff;
@@ -74,6 +83,11 @@
       font-size: 14px;
       min-height: 20px;
     }
+    hr {
+      margin: 30px 0 10px;
+      border: none;
+      border-top: 1px solid #ddd;
+    }
   </style>
 </head>
 <body>
@@ -81,6 +95,7 @@
 <h1>⚙️ Finoana Auto Claim</h1>
 <div class="subtitle">Configuration du bot de réclamation automatique</div>
 
+<!-- Formulaire principal (Login / Cookies) -->
 <form id="claimForm">
   <div class="info-note">
     ⚡ <strong>Login + Claim immédiat :</strong> après connexion, le claim est tenté automatiquement.<br>
@@ -143,8 +158,22 @@
   <div id="statusMsg" class="status-message"></div>
 </form>
 
+<!-- Bloc de test manuel du Claim -->
+<hr>
+<h3>🧪 Test Manuel du Claim</h3>
+<div class="test-block">
+  <label for="testUserId">User ID (ex: user_g5ro565mil)</label>
+  <input type="text" id="testUserId" value="" placeholder="user_...">
+
+  <label for="testProxy">Proxy (optionnel, recommandé)</label>
+  <input type="text" id="testProxy" placeholder="http://user:pass@ip:port">
+
+  <button onclick="testClaim()" class="btn-blue">🚀 Lancer le claim</button>
+  <div id="testResult" class="status-message"></div>
+</div>
+
 <script>
-  // ----- Initialisation : s'assurer que userId existe -----
+  // ----- Initialisation : userId -----
   function getUserId() {
     let uid = localStorage.getItem('finoana_user_id');
     if (!uid) {
@@ -153,6 +182,9 @@
     }
     return uid;
   }
+
+  // Afficher l'ID utilisateur dans le champ de test
+  document.getElementById('testUserId').value = getUserId();
 
   // ----- UI : afficher/masquer les champs -----
   window.toggleMethod = function() {
@@ -173,16 +205,15 @@
     el.style.color = isError ? '#dc3545' : '#28a745';
   }
 
-  // ----- Sauvegarde principale -----
+  // ----- Sauvegarde (Login / Cookies) -----
   window.saveSettings = async function() {
     const method = document.getElementById('method').value;
     const saveBtn = document.getElementById('saveBtn');
     const originalText = saveBtn.textContent;
     setStatus('');
 
-    // Récupération des valeurs
-    let email = null, password = null, cookie = null;
-    let platform, timer, proxy;
+    let platform, timer, proxy, cookie = null;
+    let email = null, password = null;
 
     if (method === 'login') {
       email = document.getElementById('email').value.trim();
@@ -200,18 +231,13 @@
       return;
     }
 
-    // Validation basique
     if (!platform) {
       alert('❌ Veuillez sélectionner une plateforme.');
       return;
     }
 
-    // Récupération userId (garanti)
     const userId = getUserId();
-    console.log('📌 userId utilisé :', userId);
-
     let finalCookie = null;
-    let claimInfo = null;
 
     try {
       if (method === 'cookies') {
@@ -219,40 +245,23 @@
         finalCookie = cookie;
         setStatus('🍪 Cookie manuel prêt pour la sauvegarde...');
       } else {
-        // Login
         if (!email || !password) throw new Error('Email et mot de passe requis');
 
         saveBtn.disabled = true;
-        saveBtn.textContent = '🔄 Authentification + Claim en cours...';
-        setStatus(`Connexion à ${platform} avec ${email}... (peut prendre 30s)`);
-
-        // Préparation du corps de la requête
-        const payload = {
-          email, password, platform,
-          proxy: proxy || null,
-          userId
-        };
-        console.log('📤 Envoi à /api/autologin :', payload);
+        saveBtn.textContent = '🔄 Authentification en cours...';
+        setStatus(`Connexion à ${platform} avec ${email}...`);
 
         const loginResp = await fetch('/api/autologin', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(payload)
+          body: JSON.stringify({ email, password, platform, proxy: proxy || null, userId })
         });
 
         const loginData = await loginResp.json();
-        if (!loginResp.ok) {
-          throw new Error(loginData.error || 'Échec authentification');
-        }
+        if (!loginResp.ok) throw new Error(loginData.error || 'Échec authentification');
 
         finalCookie = loginData.cookie;
-        claimInfo = loginData.claim;
-
-        if (claimInfo?.success) {
-          setStatus('✅ Login + Claim réussis !');
-        } else {
-          setStatus(`✅ Login OK, claim : ${claimInfo?.message || 'non tenté'}`, !claimInfo?.success);
-        }
+        setStatus('✅ Login OK, cookie récupéré.');
       }
 
       // Sauvegarde GitHub
@@ -271,10 +280,8 @@
       const saveData = await saveResp.json();
       if (!saveResp.ok) throw new Error(saveData.error || 'Erreur sauvegarde');
 
-      let msg = `✅ Config sauvegardée (configs/${userId}.json)`;
-      if (claimInfo) msg += `\n🎁 Claim : ${claimInfo.success ? 'Réussi' : 'Échoué'}`;
-      alert(msg);
-      setStatus(msg.replace(/\n/g, ' — '));
+      alert(`✅ Config sauvegardée (configs/${userId}.json)`);
+      setStatus(`✅ Config sauvegardée.`);
 
     } catch (err) {
       console.error(err);
@@ -283,6 +290,46 @@
     } finally {
       saveBtn.disabled = false;
       saveBtn.textContent = originalText;
+    }
+  };
+
+  // ----- Test manuel du Claim -----
+  window.testClaim = async function() {
+    const userId = document.getElementById('testUserId').value.trim();
+    const proxy = document.getElementById('testProxy').value.trim();
+    const resultEl = document.getElementById('testResult');
+
+    if (!userId) {
+      resultEl.textContent = '❌ User ID requis';
+      return;
+    }
+
+    resultEl.textContent = '⏳ Claim en cours...';
+    resultEl.style.color = '#000';
+
+    try {
+      const res = await fetch('/api/claim', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId, proxy: proxy || null })
+      });
+
+      const data = await res.json();
+      if (res.ok) {
+        if (data.success) {
+          resultEl.textContent = `✅ Claim réussi ! ${data.message}`;
+          resultEl.style.color = '#28a745';
+        } else {
+          resultEl.textContent = `⚠️ Claim échoué : ${data.message}`;
+          resultEl.style.color = '#ff9800';
+        }
+      } else {
+        resultEl.textContent = `❌ Erreur API : ${data.error}`;
+        resultEl.style.color = '#dc3545';
+      }
+    } catch (e) {
+      resultEl.textContent = `❌ Erreur réseau : ${e.message}`;
+      resultEl.style.color = '#dc3545';
     }
   };
 </script>
