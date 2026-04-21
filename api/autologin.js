@@ -1,175 +1,105 @@
-// /api/autologin.js
-import * as cheerio from 'cheerio';
-
+// /api/autologin.js - Version login uniquement (Browserless)
 export default async function handler(req, res) {
   if (req.method !== 'POST') {
-    return res.status(405).json({ error: 'Méthode non autorisée, utilisez POST' });
+    return res.status(405).json({ error: 'Méthode non autorisée' });
   }
 
   const { email, password, platform, proxy, userId } = req.body;
-
   if (!email || !password || !platform || !userId) {
     return res.status(400).json({ error: 'Champs manquants : email, password, platform, userId' });
   }
 
-  const FLARESOLVERR_URL = 'https://flaresolverr-wekb.onrender.com';
-  const USER_AGENT = 'Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/116.0.0.0 Mobile Safari/537.36';
+  // ⚠️ REMPLACE par ta clé API Browserless
+  const BROWSERLESS_API_KEY = '2UIkOrNzStgIC7Sf8d1f7cd0e36c465cc9ecf3586f0f00b27';
+  const BROWSERLESS_URL = `https://chrome.browserless.io?token=${BROWSERLESS_API_KEY}`;
 
-  async function callFlareSolverr(payload, retries = 3) {
-    for (let i = 0; i < retries; i++) {
-      try {
-        const response = await fetch(`${FLARESOLVERR_URL}/v1`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(payload)
-        });
-        const data = await response.json();
-        if (!response.ok) throw new Error(`HTTP ${response.status}`);
-        if (data.status !== 'ok') throw new Error(data.message || 'FlareSolverr failed');
-        return data;
-      } catch (err) {
-        if (i === retries - 1) throw err;
-        await new Promise(r => setTimeout(r, 3000));
-      }
-    }
-  }
-
-  try {
-    // ========== 1. LOGIN ==========
-    const loginPageUrl = 'https://tronpick.io/login';
-    const flarePayload = {
-      cmd: 'request.get',
-      url: loginPageUrl,
-      maxTimeout: 120000
+  // Script exécuté dans le navigateur cloud
+  const puppeteerScript = async ({ email, password, proxy }) => {
+    const puppeteer = require('puppeteer-core');
+    
+    const launchOptions = {
+      headless: 'new',
+      args: ['--no-sandbox', '--disable-setuid-sandbox']
     };
-    if (proxy) flarePayload.proxy = { url: proxy };
-
-    const flareData = await callFlareSolverr(flarePayload);
-    const flareCookies = flareData.solution.cookies;
-    const cookieString = flareCookies.map(c => `${c.name}=${c.value}`).join('; ');
-    const pageHtml = flareData.solution.response;
-
-    const $ = cheerio.load(pageHtml);
-    let csrfToken = $('meta[name="csrf-token"]').attr('content') ||
-                    $('input[name="_token"]').val() ||
-                    $('input[name="csrf_token"]').val();
-
-    const formAction = $('form').attr('action');
-    const loginUrl = formAction ? new URL(formAction, loginPageUrl).href : loginPageUrl;
-
-    const loginPayload = new URLSearchParams();
-    loginPayload.append('email', email);
-    loginPayload.append('password', password);
-    loginPayload.append('remember', '1');
-    if (csrfToken) loginPayload.append('_token', csrfToken);
-
-    const loginResData = await callFlareSolverr({
-      cmd: 'request.post',
-      url: loginUrl,
-      maxTimeout: 120000,
-      headers: {
-        'Content-Type': 'application/x-www-form-urlencoded',
-        'Cookie': cookieString,
-        'User-Agent': USER_AGENT,
-        'Referer': loginPageUrl,
-        'Origin': 'https://tronpick.io'
-      },
-      postData: loginPayload.toString()
-    });
-
-    const setCookieHeader = loginResData.solution.headers['set-cookie'];
-    let sessionCookie = null;
-    if (setCookieHeader) {
-      const match = setCookieHeader.match(/(tronpick_session=[^;]+)/i) ||
-                    setCookieHeader.match(/(session=[^;]+)/i) ||
-                    setCookieHeader.match(/(laravel_session=[^;]+)/i);
-      if (match) sessionCookie = match[1];
-      else sessionCookie = setCookieHeader.split(';')[0];
+    if (proxy) {
+      launchOptions.args.push(`--proxy-server=${proxy}`);
     }
-    if (!sessionCookie) throw new Error('Aucun cookie de session après login');
 
-    console.log(`✅ Login OK`);
+    const browser = await puppeteer.launch(launchOptions);
+    const page = await browser.newPage();
 
-    // ========== PAUSE DE 20 SECONDES ==========
-    console.log('⏳ Pause de 20 secondes avant le claim...');
-    await new Promise(resolve => setTimeout(resolve, 20000));
-
-    // ========== 2. CLAIM ==========
-    let claimResult = { success: false, message: 'Non tenté' };
+    // Authentification proxy si nécessaire
+    if (proxy && proxy.includes('@')) {
+      const parts = proxy.split('://')[1] || proxy;
+      const [auth] = parts.split('@');
+      const [username, password] = auth.split(':');
+      await page.authenticate({ username, password });
+    }
 
     try {
-      const faucetPayload = {
-        cmd: 'request.get',
-        url: 'https://tronpick.io/faucet.php',
-        maxTimeout: 120000,
-        headers: {
-          'Cookie': `${cookieString}; ${sessionCookie}`,
-          'User-Agent': USER_AGENT
-        }
-      };
-      if (proxy) faucetPayload.proxy = { url: proxy };
-
-      const faucetData = await callFlareSolverr(faucetPayload);
-      const faucetHtml = faucetData.solution.response;
-      const faucetCookies = faucetData.solution.cookies;
-
-      const $f = cheerio.load(faucetHtml);
-      const hash = $f('input[name="hash"]').val();
-      const captchaResponse = $f('input[name="c_captcha_response"]').val();
-      const claimCsrf = faucetCookies?.find(c => c.name === 'csrf_cookie_name')?.value ||
-                        $f('input[name="csrf_test_name"]').val();
-
-      if (hash && captchaResponse && claimCsrf) {
-        const claimPayload = new URLSearchParams();
-        claimPayload.append('action', 'claim_hourly_faucet');
-        claimPayload.append('hash', hash);
-        claimPayload.append('captcha_type', '3');
-        claimPayload.append('c_captcha_response', captchaResponse);
-        claimPayload.append('csrf_test_name', claimCsrf);
-        claimPayload.append('g-recaptcha-response', '');
-        claimPayload.append('_iconcaptcha-token', '');
-        claimPayload.append('ic-rq', '');
-        claimPayload.append('ic-wid', '');
-        claimPayload.append('ic-cid', '');
-        claimPayload.append('ic-hp', '');
-        claimPayload.append('h-captcha-response', '');
-        claimPayload.append('pcaptcha_token', '');
-        claimPayload.append('ft', '');
-
-        const claimResData = await callFlareSolverr({
-          cmd: 'request.post',
-          url: 'https://tronpick.io/process.php',
-          maxTimeout: 120000,
-          headers: {
-            'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8',
-            'Cookie': `${cookieString}; ${sessionCookie}`,
-            'User-Agent': USER_AGENT,
-            'Referer': 'https://tronpick.io/faucet.php',
-            'Origin': 'https://tronpick.io'
-          },
-          postData: claimPayload.toString()
-        });
-
-        const body = claimResData.solution.response;
-        claimResult.success = body.includes('success') || body.includes('claimed');
-        claimResult.message = body.substring(0, 200);
-        console.log(`🎁 Claim ${claimResult.success ? 'réussi' : 'échoué'}`);
-      } else {
-        claimResult.message = 'Impossible d’extraire les données de claim (hash, captcha, csrf)';
+      // 1. Aller sur la page login
+      await page.goto('https://tronpick.io/login', { waitUntil: 'networkidle2', timeout: 30000 });
+      
+      // 2. Remplir le formulaire
+      await page.waitForSelector('input[name="email"]', { timeout: 10000 });
+      await page.type('input[name="email"]', email);
+      await page.type('input[name="password"]', password);
+      
+      // 3. Soumettre et attendre la navigation
+      await Promise.all([
+        page.click('button[type="submit"]'),
+        page.waitForNavigation({ waitUntil: 'networkidle2', timeout: 30000 })
+      ]);
+      
+      // 4. Attendre que la session soit établie
+      await page.waitForTimeout(5000);
+      
+      // 5. Récupérer le cookie de session
+      const cookies = await page.cookies();
+      const sessionCookie = cookies.find(c => 
+        c.name.includes('session') || 
+        c.name.includes('tronpick') || 
+        c.name.includes('user')
+      );
+      
+      await browser.close();
+      
+      if (!sessionCookie) {
+        throw new Error('Cookie de session introuvable après login');
       }
-    } catch (claimError) {
-      claimResult.message = claimError.message;
-      console.error('❌ Erreur claim:', claimError.message);
+      
+      return {
+        success: true,
+        cookie: `${sessionCookie.name}=${sessionCookie.value}`
+      };
+      
+    } catch (error) {
+      await browser.close();
+      throw new Error(`Login échoué: ${error.message}`);
     }
+  };
 
-    return res.status(200).json({
-      success: true,
-      cookie: sessionCookie,
-      claim: claimResult
+  try {
+    // Appel à Browserless
+    const response = await fetch(BROWSERLESS_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        code: puppeteerScript.toString(),
+        context: { email, password, proxy }
+      })
     });
 
+    const data = await response.json();
+    if (!response.ok) {
+      throw new Error(data.error || 'Erreur Browserless');
+    }
+
+    // Renvoyer le cookie au frontend
+    return res.status(200).json(data.result);
+
   } catch (error) {
-    console.error('Erreur:', error.message);
+    console.error('Erreur autologin:', error.message);
     return res.status(500).json({ error: error.message });
   }
 }
