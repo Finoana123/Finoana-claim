@@ -1,7 +1,16 @@
 {
-  "name": "finoana-auto-claim",
+  "name": "bet261-auto",
   "version": "1.0.0",
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start"
+  },
   "dependencies": {
-    "cheerio": "1.0.0-rc.12"
+    "next": "^14",
+    "react": "^18",
+    "react-dom": "^18",
+    "puppeteer-core": "^22",
+    "@sparticuz/chromium": "^121"
   }
 }
