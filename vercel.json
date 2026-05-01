@@ -1,0 +1,8 @@
+{
+  "functions": {
+    "api/fusion.js": {
+      "memory": 1024,
+      "maxDuration": 30
+    }
+  }
+}
