@@ -1,85 +1,59 @@
 <!DOCTYPE html>
 <html lang="fr">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Finoana Auto Claim - Connexion</title>
-
-<!-- Firebase v9+ compat CDN -->
-<script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-auth-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-database-compat.js"></script>
-
-<script>
-const firebaseConfig = {
-  apiKey: "AIzaSyAuuM8srnQNvYHJG5vMFfJQq-MwpU2H0Po",
-  authDomain: "finoana-autoclaim.firebaseapp.com",
-  projectId: "finoana-autoclaim",
-  storageBucket: "finoana-autoclaim.firebasestorage.app",
-  messagingSenderId: "873516238295",
-  appId: "1:873516238295:web:ab78797587d0f300173792"
-};
-
-firebase.initializeApp(firebaseConfig);
-const auth = firebase.auth();
-const db = firebase.database();
-
-function login() {
-  const email = document.getElementById("email").value.trim();
-  const password = document.getElementById("password").value;
-
-  if(!email || !password){
-    alert("Veuillez entrer votre email et mot de passe");
-    return;
-  }
-
-  auth.signInWithEmailAndPassword(email,password)
-    .then(userCredential => {
-      const user = userCredential.user;
-
-      // Vérifier si le nom est enregistré dans la base
-      db.ref("users/" + user.uid).once("value", snapshot => {
-        if(snapshot.exists()){
-          localStorage.setItem("loggedUser", JSON.stringify(snapshot.val()));
-          window.location.href = "dashboard.html";
-        } else {
-          alert("Erreur : utilisateur non trouvé dans la base.");
-        }
-      });
-    })
-    .catch(error => alert(error.message));
-}
-</script>
-
-<style>
-body{ font-family:Arial; text-align:center; margin-top:80px; background:#e6f7ff;}
-h1{ color:#333; }
-input{ padding:12px; margin:10px; width:260px; border-radius:5px; border:1px solid #ccc;}
-button{ padding:12px 25px; background:#28a745; color:white; border:none; border-radius:5px; font-size:16px; cursor:pointer;}
-button:hover{ background:#218838; }
-.signup{ background:#fd7e14; }
-.signup:hover{ background:#e36a00; }
-a{text-decoration:none; color:#007bff; font-weight:bold;}
-.footer{ position:fixed; bottom:10px; left:10px;}
-.footer a{ margin-right:15px; }
-</style>
-
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Bet261 - Cotes Virtuelles</title>
+  <style>
+    body { font-family: sans-serif; max-width: 450px; margin: 2rem auto; padding: 1rem; }
+    label { display: block; margin-top: 1rem; }
+    input { width: 100%; padding: 0.5rem; margin-top: 0.2rem; font-size: 1rem; }
+    button { width: 100%; padding: 0.7rem; margin-top: 1.5rem; background: #0070f3; color: white;
+             border: none; border-radius: 4px; font-size: 1rem; cursor: pointer; }
+    #result { margin-top: 1.5rem; background: #f2f2f2; padding: 1rem; border-radius: 4px; white-space: pre-wrap; }
+  </style>
 </head>
 <body>
+  <h1>Bet261 - Connexion + Cotes</h1>
+  <form id="loginForm">
+    <label>Téléphone :</label>
+    <input type="tel" id="phone" name="phone" placeholder="0612345678" required>
+    <label>Mot de passe :</label>
+    <input type="password" id="password" name="password" required>
+    <button type="submit">Se connecter et voir les cotes</button>
+  </form>
+  <div id="result"></div>
 
-<h1>Finoana Auto Claim</h1>
-<p>Connectez-vous pour commencer à gagner vos TRX</p>
+  <script>
+    document.getElementById('loginForm').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const phone = document.getElementById('phone').value.trim();
+      const password = document.getElementById('password').value.trim();
+      const resultDiv = document.getElementById('result');
+      resultDiv.textContent = '⏳ Connexion en cours...';
 
-<input id="email" type="email" placeholder="Email"><br>
-<input id="password" type="password" placeholder="Mot de passe"><br><br>
-
-<button onclick="login()">Connexion</button>
-<button class="signup" onclick="window.location.href='signup.html'">S'inscrire</button>
-
-<div class="footer">
-<a href="#">FAQ</a>
-<a href="#">Contact</a>
-</div>
-
+      try {
+        const res = await fetch('/api/login', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ phone, password })
+        });
+        const data = await res.json();
+        if (data.error) {
+          resultDiv.textContent = '❌ ' + data.error;
+        } else {
+          resultDiv.innerHTML = `
+            <p>✅ Connexion réussie</p>
+            <p><strong>1 :</strong> ${data.odds.home}</p>
+            <p><strong>N :</strong> ${data.odds.draw}</p>
+            <p><strong>2 :</strong> ${data.odds.away}</p>
+            <p><em>${data.message || ''}</em></p>
+          `;
+        }
+      } catch (err) {
+        resultDiv.textContent = '❌ Erreur réseau : ' + err.message;
+      }
+    });
+  </script>
 </body>
 </html>
