@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Bet261 – Fusion propre</title>
+  <title>Bet261 – Avec cote N</title>
   <style>
     :root {
       --primary: #1a73e8;
@@ -67,7 +67,7 @@
 <body>
   <div class="container">
     <div class="header">
-      <h1>⚽ Bet261 – Fusion propre</h1>
+      <h1>⚽ Bet261 – Avec cote N</h1>
       <p>Sélectionnez les deux captures, le tableau complet apparaîtra.</p>
     </div>
 
@@ -115,7 +115,6 @@
 
   <script src='https://unpkg.com/tesseract.js@v5.0.0/dist/tesseract.min.js'></script>
   <script>
-    // Éléments du DOM
     const oddsInput = document.getElementById('oddsInput');
     const resultsInput = document.getElementById('resultsInput');
     const analyzeBtn = document.getElementById('analyzeBtn');
@@ -135,58 +134,92 @@
     resultsInput.onchange = () => { resultsFile = resultsInput.files[0]; checkFiles(); };
     function checkFiles() { analyzeBtn.disabled = !(oddsFile && resultsFile); }
 
-    // Nettoyage agressif : ne garde que les lettres, points et apostrophes, puis supprime les mots de moins de 2 lettres
+    // Nettoyage poussé : ne garder que les tokens alphabétiques de 3+ lettres, première lettre capitale
     function cleanTeamName(str) {
-      let name = str.replace(/[^A-Za-z .'-]/g, '').trim();
-      name = name.split(' ').filter(w => w.length >= 2 || /[A-Z]/.test(w)).join(' ');
-      return name.trim();
+      let tokens = str.replace(/[^A-Za-z '.-]/g, ' ').split(/\s+/).filter(t => t.length >= 3 && /[A-Za-z]/.test(t));
+      if (tokens.length === 0) return '';
+      tokens = tokens.map(t => t.charAt(0).toUpperCase() + t.slice(1).toLowerCase());
+      return tokens.join(' ');
     }
 
     const normalize = s => s.toLowerCase().replace(/[^a-z]/g, '');
 
-    // Extraction basée sur les lignes qui contiennent une cote décimale
+    // Extraction des cotes repensée : lire toutes les lignes de cotes (nombre décimal)
     function extractOdds(text) {
       const lines = text.split('\n').map(l => l.trim()).filter(l => l);
+      const allNumbers = [];
+      // Repérer chaque ligne contenant au moins un nombre décimal et sa position
+      lines.forEach((line, idx) => {
+        const nums = line.match(/\d+[.,]\d+/g);
+        if (nums) {
+          allNumbers.push({ index: idx, numbers: nums.map(n => n.replace(',', '.')) });
+        }
+      });
+
+      // Regrouper les nombres par triplet (par ordre d'apparition)
+      const triplets = [];
+      let flatNumbers = [];
+      for (const group of allNumbers) {
+        flatNumbers.push(...group.numbers);
+      }
+      // Si le nombre total de cotes est un multiple de 3, on les regroupe en paquets de trois
+      if (flatNumbers.length % 3 === 0) {
+        for (let i = 0; i < flatNumbers.length; i += 3) {
+          triplets.push(flatNumbers.slice(i, i + 3));
+        }
+      } else {
+        // Sinon, on essaie de regrouper par lot de 2 si pas de N (comme avant)
+        for (let i = 0; i < flatNumbers.length; i += 2) {
+          triplets.push(flatNumbers.slice(i, i + 2));
+        }
+      }
+
       const matches = [];
-      const oddRegex = /(\d+[.,]\d+)/g;
-      let i = 0;
-      while (i < lines.length) {
-        const odds = lines[i].match(oddRegex);
-        if (odds && odds.length >= 2) {
-          // Ligne de cotes trouvée, chercher les deux équipes au-dessus
+      let tripIdx = 0;
+      // Parcourir les lignes pour associer les triplets aux équipes
+      for (let i = 0; i < lines.length && tripIdx < triplets.length; i++) {
+        const line = lines[i];
+        // Si la ligne contient un ou plusieurs des nombres du triplet courant, on la considère comme ligne de cotes
+        const triplet = triplets[tripIdx];
+        const hasAny = triplet.some(num => line.includes(num));
+        if (hasAny) {
+          // Chercher les deux équipes immédiatement au-dessus (dans l'ordre inverse)
           let team1 = '', team2 = '';
-          for (let j = i-1; j >= 0; j--) {
-            if (!team1 && !/^\d+[.,]/.test(lines[j]) && /[A-Za-z]/.test(lines[j])) {
-              team1 = cleanTeamName(lines[j]);
-            } else if (team1 && !team2 && !/^\d+[.,]/.test(lines[j]) && /[A-Za-z]/.test(lines[j])) {
-              team2 = cleanTeamName(lines[j]);
-              break;
+          for (let j = i - 1; j >= 0 && !team2; j--) {
+            const candidate = cleanTeamName(lines[j]);
+            if (candidate && !/\d+[.,]\d+/.test(lines[j])) {
+              if (!team1) team1 = candidate;
+              else if (!team2) team2 = candidate;
             }
           }
-          // Si on n'a pas trouvé, on essaie en dessous (au cas où)
           if (!team2) {
-            for (let j = i+1; j < lines.length; j++) {
-              if (!/^\d+[.,]/.test(lines[j]) && /[A-Za-z]/.test(lines[j])) {
-                if (!team1) team1 = cleanTeamName(lines[j]);
-                else if (!team2) { team2 = cleanTeamName(lines[j]); break; }
+            // Essayer en dessous
+            for (let j = i + 1; j < lines.length && !team2; j++) {
+              const candidate = cleanTeamName(lines[j]);
+              if (candidate && !/\d+[.,]\d+/.test(lines[j])) {
+                if (!team1) team1 = candidate;
+                else if (!team2) team2 = candidate;
               }
             }
           }
           if (team1 && team2) {
-            let homeOdd = odds[0].replace(',', '.');
-            let awayOdd = odds[odds.length-1].replace(',', '.');
-            let drawOdd = odds.length === 3 ? odds[1].replace(',', '.') : null;
-            matches.push({ team1, team2, homeOdd, drawOdd, awayOdd });
-            i++;
+            // Inverser si l'ordre est inverse (équipe 1 puis équipe 2 dans l'ordre d'apparition)
+            // L'équipe la plus haute dans le texte est l'équipe 1
+            const pos1 = lines.indexOf(team1);
+            const pos2 = lines.indexOf(team2);
+            if (pos1 > pos2) [team1, team2] = [team2, team1];
+            const [homeOdd, drawOdd, awayOdd] = triplet.length === 3 ? triplet : [triplet[0], null, triplet[1]];
+            matches.push({ team1, team2, homeOdd: homeOdd || null, drawOdd: drawOdd || null, awayOdd: awayOdd || null });
+            tripIdx++;
+            i++; // passer cette ligne
             continue;
           }
         }
-        i++;
       }
       return matches;
     }
 
-    // Extraction des résultats (identique à la version précédente, fiable)
+    // Extraction des résultats (identique, déjà robuste)
     function extractResults(text) {
       const lines = text.split('\n').map(l => l.trim()).filter(l => l);
       const results = {};
@@ -198,8 +231,10 @@
           const team1 = cleanTeamName(m[1]);
           const score = `${m[2]}-${m[3]}`;
           const team2 = cleanTeamName(m[4]);
-          results[normalize(team1)] = score;
-          results[normalize(team2)] = score;
+          if (team1 && team2) {
+            results[normalize(team1)] = score;
+            results[normalize(team2)] = score;
+          }
           continue;
         }
         m = line.match(pattern2);
@@ -207,8 +242,10 @@
           const team1 = cleanTeamName(m[1]);
           const score = `${m[2]}-${m[3]}`;
           const team2 = cleanTeamName(m[4]);
-          results[normalize(team1)] = score;
-          results[normalize(team2)] = score;
+          if (team1 && team2) {
+            results[normalize(team1)] = score;
+            results[normalize(team2)] = score;
+          }
         }
       }
       return results;
@@ -275,7 +312,7 @@
       }
     };
 
-    // Boutons copier / CSV
+    // Boutons copier / CSV (inchangés)
     document.getElementById('copyBtn').onclick = () => {
       if (!window._matches) return;
       const lines = window._matches.map(m =>
