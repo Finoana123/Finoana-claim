@@ -1,12 +1,11 @@
 {
   "name": "bet261-backend",
   "version": "1.0.0",
-  "scripts": {
-    "build": ""
-  },
+  "scripts": { "build": "" },
   "dependencies": {
     "node-fetch": "2",
     "form-data": "^4.0.0",
-    "sharp": "^0.33.2"
+    "sharp": "^0.33.2",
+    "busboy": "^1.6.0"
   }
 }
