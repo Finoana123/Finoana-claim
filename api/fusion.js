@@ -1,22 +1,48 @@
 const sharp = require('sharp');
 const fetch = require('node-fetch');
 const FormData = require('form-data');
+const busboy = require('busboy');
 
 const OCR_API_KEY = process.env.OCR_SPACE_API_KEY;
 
-// Fonction pour prétraiter une image (contraste + binarisation)
+// Fonction pour parser la requête multipart et retourner deux buffers (oddsImage, resultsImage)
+function parseMultipart(req) {
+  return new Promise((resolve, reject) => {
+    const files = {};
+    const bb = busboy({ headers: req.headers });
+    bb.on('file', (fieldname, file) => {
+      const chunks = [];
+      file.on('data', (chunk) => chunks.push(chunk));
+      file.on('end', () => {
+        files[fieldname] = Buffer.concat(chunks);
+      });
+    });
+    bb.on('finish', () => {
+      if (!files.oddsImage || !files.resultsImage) {
+        reject(new Error('Deux images sont requises (oddsImage, resultsImage)'));
+      } else {
+        resolve({ oddsBuffer: files.oddsImage, resultsBuffer: files.resultsImage });
+      }
+    });
+    bb.on('error', reject);
+    req.pipe(bb);
+  });
+}
+
+// Prétraitement d'image (contraste + binarisation)
 async function preprocessImage(buffer) {
+  // Vérifier que le buffer est bien une image (sharp le fera, mais on peut logguer)
   return await sharp(buffer)
-    .resize(1200) // agrandir un peu pour aider l'OCR
+    .resize(1200)
     .grayscale()
-    .normalize() // étendre la plage tonale
+    .normalize()
     .sharpen()
-    .threshold(128) // binarisation
+    .threshold(128)
     .png()
     .toBuffer();
 }
 
-// Fonction pour envoyer un buffer à OCR.space
+// Envoi à OCR.space
 async function ocrSpace(buffer) {
   const form = new FormData();
   form.append('apikey', OCR_API_KEY);
@@ -24,7 +50,7 @@ async function ocrSpace(buffer) {
   form.append('language', 'eng');
   form.append('isOverlayRequired', 'false');
   form.append('scale', 'true');
-  form.append('OCREngine', '2'); // moteur plus précis
+  form.append('OCREngine', '2');
 
   const res = await fetch('https://api.ocr.space/Parse/Image', {
     method: 'POST',
@@ -60,7 +86,6 @@ function extractOdds(text) {
     if (nums) numberLines.push({ idx, nums: nums.map(n => n.replace(',', '.')) });
   });
 
-  // Grouper les lignes de nombres proches
   const groups = [];
   for (const item of numberLines) {
     if (groups.length === 0 || item.idx - groups[groups.length-1].at(-1).idx > 2) {
@@ -121,32 +146,17 @@ function extractResults(text) {
   return results;
 }
 
-// Fonction principale Vercel
+// Handler principal Vercel
 module.exports = async (req, res) => {
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Méthode non autorisée' });
   }
 
   try {
-    // Récupérer les deux fichiers image
-    const chunks = [];
-    for await (const chunk of req) chunks.push(chunk);
-    const buffer = Buffer.concat(chunks);
-    const boundary = req.headers['content-type'].split('boundary=')[1];
-    const parts = buffer.toString().split('--' + boundary).filter(p => p.includes('filename'));
+    // Parser les fichiers avec busboy
+    const { oddsBuffer, resultsBuffer } = await parseMultipart(req);
 
-    if (parts.length < 2) throw new Error('Deux images requises');
-
-    const extractBuffer = (part) => {
-      const start = part.indexOf('\r\n\r\n') + 4;
-      const end = part.lastIndexOf('\r\n--');
-      return Buffer.from(part.slice(start, end > 0 ? end : part.length), 'binary');
-    };
-
-    const oddsBuffer = extractBuffer(parts[0]);
-    const resultsBuffer = extractBuffer(parts[1]);
-
-    // Prétraiter les images
+    // Prétraiter les deux images
     const [oddsProcessed, resultsProcessed] = await Promise.all([
       preprocessImage(oddsBuffer),
       preprocessImage(resultsBuffer)
