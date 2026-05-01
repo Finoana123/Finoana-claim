@@ -5,7 +5,7 @@ const busboy = require('busboy');
 
 const OCR_API_KEY = process.env.OCR_SPACE_API_KEY;
 
-// Parser multipart avec busboy
+// Parser multipart avec busboy (identique)
 function parseMultipart(req) {
   return new Promise((resolve, reject) => {
     const files = {};
@@ -29,41 +29,47 @@ function parseMultipart(req) {
   });
 }
 
-// Prétraitement
+// Prétraitement amélioré : pas de seuil strict, juste contraste + netteté
 async function preprocessImage(buffer) {
   return await sharp(buffer)
     .resize(1200)
     .grayscale()
     .normalize()
     .sharpen()
-    .threshold(128)
     .png()
     .toBuffer();
 }
 
-// OCR
-async function ocrSpace(buffer) {
-  const form = new FormData();
-  form.append('apikey', OCR_API_KEY);
-  form.append('file', buffer, { filename: 'image.png', contentType: 'image/png' });
-  form.append('language', 'eng');
-  form.append('isOverlayRequired', 'false');
-  form.append('scale', 'true');
-  form.append('OCREngine', '2');
+// OCR avec gestion d'erreur et retour de texte brut + éventuel message
+async function ocrSpaceSafe(buffer) {
+  try {
+    const form = new FormData();
+    form.append('apikey', OCR_API_KEY);
+    form.append('file', buffer, { filename: 'image.png', contentType: 'image/png' });
+    form.append('language', 'eng');
+    form.append('isOverlayRequired', 'false');
+    form.append('scale', 'true');
+    form.append('OCREngine', '2');
 
-  const res = await fetch('https://api.ocr.space/Parse/Image', {
-    method: 'POST',
-    body: form,
-    headers: form.getHeaders()
-  });
-  const data = await res.json();
-  if (data.IsErroredOnProcessing || !data.ParsedResults || !data.ParsedResults.length) {
-    throw new Error(data.ErrorMessage || 'OCR failed');
+    const res = await fetch('https://api.ocr.space/Parse/Image', {
+      method: 'POST',
+      body: form,
+      headers: form.getHeaders()
+    });
+    const data = await res.json();
+    if (data.IsErroredOnProcessing) {
+      return { text: '', error: data.ErrorMessage || 'Erreur OCR' };
+    }
+    if (!data.ParsedResults || data.ParsedResults.length === 0) {
+      return { text: '', error: 'Aucun résultat OCR' };
+    }
+    return { text: data.ParsedResults[0].ParsedText, error: null };
+  } catch (err) {
+    return { text: '', error: err.message };
   }
-  return data.ParsedResults[0].ParsedText;
 }
 
-// Nettoyage des noms
+// Nettoyage des noms (inchangé)
 const STOP_WORDS = new Set(['se', 'connecter', 'inscrire', 's\'inscrire', 'menu', 'virtuel', 'mes', 'paris']);
 function cleanName(str) {
   let name = str.replace(/[^A-Za-z '-]/g, ' ').trim();
@@ -75,7 +81,7 @@ function cleanName(str) {
 
 const normalize = s => s.toLowerCase().replace(/[^a-z]/g, '');
 
-// Extraction des cotes
+// Extracteurs (inchangés)
 function extractOdds(text) {
   const lines = text.split('\n').map(l => l.trim()).filter(l => l.length > 0);
   const matches = [];
@@ -123,7 +129,6 @@ function extractOdds(text) {
   return matches;
 }
 
-// Extraction des résultats
 function extractResults(text) {
   const lines = text.split('\n').map(l => l.trim()).filter(l => l.length > 0);
   const results = {};
@@ -154,19 +159,44 @@ module.exports = async (req, res) => {
   try {
     const { oddsBuffer, resultsBuffer } = await parseMultipart(req);
 
-    // Prétraiter
+    // Prétraitement des deux images
     const [oddsProcessed, resultsProcessed] = await Promise.all([
-      preprocessImage(oddsBuffer),
-      preprocessImage(resultsBuffer)
+      preprocessImage(oddsBuffer).catch(() => null),
+      preprocessImage(resultsBuffer).catch(() => null)
     ]);
 
-    // OCR
-    const [oddsText, resultsText] = await Promise.all([
-      ocrSpace(oddsProcessed),
-      ocrSpace(resultsProcessed)
+    // Fonction pour obtenir le texte le plus long entre l'image prétraitée et l'originale
+    const getBestText = async (processedBuffer, originalBuffer) => {
+      // Essayer d'abord l'image prétraitée
+      let bestText = '';
+      let bestError = null;
+      if (processedBuffer) {
+        const res = await ocrSpaceSafe(processedBuffer);
+        bestText = res.text;
+        bestError = res.error;
+        if (bestText.length > 0) return { text: bestText, used: 'processed' };
+      }
+      // Si vide, essayer l'originale
+      if (originalBuffer) {
+        const resOrig = await ocrSpaceSafe(originalBuffer);
+        if (resOrig.text.length > bestText.length) {
+          bestText = resOrig.text;
+          bestError = resOrig.error;
+          return { text: bestText, used: 'original' };
+        }
+      }
+      return { text: bestText, error: bestError, used: processedBuffer ? 'processed' : 'original' };
+    };
+
+    const [oddsOcr, resultsOcr] = await Promise.all([
+      getBestText(oddsProcessed, oddsBuffer),
+      getBestText(resultsProcessed, resultsBuffer)
     ]);
 
-    // Extraire
+    const oddsText = oddsOcr.text;
+    const resultsText = resultsOcr.text;
+
+    // Extraction
     const matches = extractOdds(oddsText);
     const results = extractResults(resultsText);
 
@@ -191,14 +221,18 @@ module.exports = async (req, res) => {
       }
     });
 
-    // Réponse avec debug
+    // Réponse enrichie avec les infos de debug
     res.status(200).json({
       matches,
       debug: {
         oddsText,
         resultsText,
         oddsMatchCount: matches.length,
-        resultsCount: Object.keys(results).length
+        resultsCount: Object.keys(results).length,
+        oddsUsed: oddsOcr.used,
+        resultsUsed: resultsOcr.used,
+        oddsError: oddsOcr.error || null,
+        resultsError: resultsOcr.error || null
       }
     });
   } catch (error) {
