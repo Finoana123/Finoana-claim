@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Bet261 – Fusion fiable</title>
+  <title>Bet261 – Fusion propre</title>
   <style>
     :root {
       --primary: #1a73e8;
@@ -67,7 +67,7 @@
 <body>
   <div class="container">
     <div class="header">
-      <h1>⚽ Bet261 – Fusion fiable</h1>
+      <h1>⚽ Bet261 – Fusion propre</h1>
       <p>Sélectionnez les deux captures, le tableau complet apparaîtra.</p>
     </div>
 
@@ -115,7 +115,7 @@
 
   <script src='https://unpkg.com/tesseract.js@v5.0.0/dist/tesseract.min.js'></script>
   <script>
-    // Éléments du DOM (identiques à avant)
+    // Éléments du DOM
     const oddsInput = document.getElementById('oddsInput');
     const resultsInput = document.getElementById('resultsInput');
     const analyzeBtn = document.getElementById('analyzeBtn');
@@ -135,52 +135,50 @@
     resultsInput.onchange = () => { resultsFile = resultsInput.files[0]; checkFiles(); };
     function checkFiles() { analyzeBtn.disabled = !(oddsFile && resultsFile); }
 
-    // Nettoyage des noms d'équipes
+    // Nettoyage agressif : ne garde que les lettres, points et apostrophes, puis supprime les mots de moins de 2 lettres
     function cleanTeamName(str) {
-      // Supprime les symboles isolés mais garde les lettres, chiffres, points, espaces, tirets
-      let name = str.replace(/[^A-Za-z0-9 .'-]/g, '').trim();
-      // Supprime les mots courts (<2 lettres) isolés (restes de bruit)
-      name = name.split(' ').filter(w => w.length >= 2 || /\d/.test(w)).join(' ');
+      let name = str.replace(/[^A-Za-z .'-]/g, '').trim();
+      name = name.split(' ').filter(w => w.length >= 2 || /[A-Z]/.test(w)).join(' ');
       return name.trim();
     }
 
-    // Normalisation pour la fusion
     const normalize = s => s.toLowerCase().replace(/[^a-z]/g, '');
 
-    // Extraction robuste des cotes
+    // Extraction basée sur les lignes qui contiennent une cote décimale
     function extractOdds(text) {
       const lines = text.split('\n').map(l => l.trim()).filter(l => l);
       const matches = [];
       const oddRegex = /(\d+[.,]\d+)/g;
       let i = 0;
-      while (i < lines.length - 1) {
-        // Essayer de nettoyer la ligne courante
-        let line1 = cleanTeamName(lines[i]);
-        let line2 = cleanTeamName(lines[i+1]);
-        // Vérifier que ce sont des mots (lettres) et pas seulement des nombres/cotes
-        if (/[A-Za-z]/.test(line1) && /[A-Za-z]/.test(line2) && line1.length > 1 && line2.length > 1) {
-          // Vérifier que la ligne suivante n'est pas une cote (nombre décimal)
-          if (!/^\d+[.,]\d+$/.test(lines[i]) && !/^\d+[.,]\d+$/.test(lines[i+1])) {
-            // Chercher les cotes dans les 3 lignes suivantes
-            let odds = [];
-            for (let j = i+2; j < Math.min(i+6, lines.length); j++) {
-              const nums = lines[j].match(oddRegex);
-              if (nums) odds.push(...nums.map(n => n.replace(',', '.')));
-              if (odds.length >= 3) break;
+      while (i < lines.length) {
+        const odds = lines[i].match(oddRegex);
+        if (odds && odds.length >= 2) {
+          // Ligne de cotes trouvée, chercher les deux équipes au-dessus
+          let team1 = '', team2 = '';
+          for (let j = i-1; j >= 0; j--) {
+            if (!team1 && !/^\d+[.,]/.test(lines[j]) && /[A-Za-z]/.test(lines[j])) {
+              team1 = cleanTeamName(lines[j]);
+            } else if (team1 && !team2 && !/^\d+[.,]/.test(lines[j]) && /[A-Za-z]/.test(lines[j])) {
+              team2 = cleanTeamName(lines[j]);
+              break;
             }
-            if (odds.length >= 2) {
-              let homeOdd = odds[0];
-              let drawOdd = odds.length === 3 ? odds[1] : null;
-              let awayOdd = odds.length === 3 ? odds[2] : odds[1];
-              matches.push({
-                team1: line1, team2: line2,
-                homeOdd: homeOdd || null,
-                drawOdd: drawOdd || null,
-                awayOdd: awayOdd || null
-              });
-              i += 2; // passer les deux équipes
-              continue;
+          }
+          // Si on n'a pas trouvé, on essaie en dessous (au cas où)
+          if (!team2) {
+            for (let j = i+1; j < lines.length; j++) {
+              if (!/^\d+[.,]/.test(lines[j]) && /[A-Za-z]/.test(lines[j])) {
+                if (!team1) team1 = cleanTeamName(lines[j]);
+                else if (!team2) { team2 = cleanTeamName(lines[j]); break; }
+              }
             }
+          }
+          if (team1 && team2) {
+            let homeOdd = odds[0].replace(',', '.');
+            let awayOdd = odds[odds.length-1].replace(',', '.');
+            let drawOdd = odds.length === 3 ? odds[1].replace(',', '.') : null;
+            matches.push({ team1, team2, homeOdd, drawOdd, awayOdd });
+            i++;
+            continue;
           }
         }
         i++;
@@ -188,18 +186,13 @@
       return matches;
     }
 
-    // Extraction robuste des résultats (gère les motifs [score] et (score])
+    // Extraction des résultats (identique à la version précédente, fiable)
     function extractResults(text) {
       const lines = text.split('\n').map(l => l.trim()).filter(l => l);
       const results = {};
-      // Pattern 1 : "Team1 [score] Team2" ou "Team1 (score] Team2" ou "Team1 [score) Team2"
       const pattern1 = /^[^a-zA-Z]*([A-Za-z .'-]+?)\s*[\[\(]\s*(\d+)\s*[-:]\s*(\d+)\s*[\]\)]\s+([A-Za-z .'-]+)/;
-      // Pattern 2 : "Team1 score Team2" (sans crochets)
       const pattern2 = /^[^a-zA-Z]*([A-Za-z .'-]+?)\s+(\d+)\s*[-:]\s*(\d+)\s+([A-Za-z .'-]+)/;
       for (const line of lines) {
-        // Nettoyer un peu la ligne
-        const cleanLine = line.replace(/[|\[\]\(\)]/g, ' ').trim();
-        // Essayer pattern1
         let m = line.match(pattern1);
         if (m) {
           const team1 = cleanTeamName(m[1]);
@@ -209,8 +202,7 @@
           results[normalize(team2)] = score;
           continue;
         }
-        // Essayer pattern2
-        m = cleanLine.match(pattern2);
+        m = line.match(pattern2);
         if (m) {
           const team1 = cleanTeamName(m[1]);
           const score = `${m[2]}-${m[3]}`;
@@ -243,7 +235,7 @@
         const matches = extractOdds(oddsText);
         const results = extractResults(resultsText);
 
-        // Fusion et calculs (identique à avant)
+        // Fusion et calculs
         matches.forEach(m => {
           const key1 = normalize(m.team1);
           const key2 = normalize(m.team2);
@@ -283,7 +275,7 @@
       }
     };
 
-    // Boutons copier / CSV (inchangés)
+    // Boutons copier / CSV
     document.getElementById('copyBtn').onclick = () => {
       if (!window._matches) return;
       const lines = window._matches.map(m =>
