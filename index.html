@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Bet261 – Fusion Cotes + Résultats (debug)</title>
+  <title>Bet261 – Fusion Cotes + Résultats (v3)</title>
   <style>
     :root {
       --primary: #1a73e8;
@@ -67,50 +67,42 @@
 <body>
   <div class="container">
     <div class="header">
-      <h1>⚽ Bet261 – Fusion Cotes + Résultats (debug)</h1>
-      <p>Sélectionnez les deux captures. Le texte OCR sera affiché pour correction.</p>
+      <h1>⚽ Bet261 – Fusion Cotes + Résultats (v3)</h1>
+      <p>Sélectionnez les deux captures, l’OCR tourne dans le navigateur.</p>
     </div>
 
     <div class="upload-row">
       <div class="upload-card">
         <h3>1. Capture des cotes</h3>
         <div class="upload-area" id="oddsArea">
-          <p>📷 Image des matchs avec cotes</p>
+          <p>📷 Matchs avec cotes</p>
           <input type="file" id="oddsInput" accept="image/*">
         </div>
       </div>
       <div class="upload-card">
         <h3>2. Capture des résultats</h3>
         <div class="upload-area" id="resultsArea">
-          <p>📷 Image des scores après matchs</p>
+          <p>📷 Scores après matchs</p>
           <input type="file" id="resultsInput" accept="image/*">
         </div>
       </div>
     </div>
 
-    <button class="btn" id="analyzeBtn" disabled>Fusionner et générer le tableau</button>
+    <button class="btn" id="analyzeBtn" disabled>Analyser et fusionner</button>
     <div id="status"></div>
 
-    <!-- Zone de debug -->
     <div id="debugArea" style="display:none;">
-      <h3>Texte OCR brut (Cotes)</h3>
-      <div id="oddsTextDebug" class="debug"></div>
-      <h3>Texte OCR brut (Résultats)</h3>
-      <div id="resultsTextDebug" class="debug"></div>
+      <h3>OCR brut – Cotes</h3>
+      <div id="oddsDebug" class="debug"></div>
+      <h3>OCR brut – Résultats</h3>
+      <div id="resultsDebug" class="debug"></div>
     </div>
 
     <div class="result-card" id="resultCard">
-      <h2>Tableau fusionné</h2>
+      <h2>Tableau complet</h2>
       <div style="overflow-x: auto;">
         <table id="matchTable">
-          <thead>
-            <tr>
-              <th>Équipe 1</th><th>Équipe 2</th>
-              <th>1</th><th>N</th><th>2</th>
-              <th>Somme 1+2</th><th>Somme 1+N+2</th>
-              <th>Moyenne</th><th>Résultat</th>
-            </tr>
-          </thead>
+          <thead><tr><th>Équipe 1</th><th>Équipe 2</th><th>1</th><th>N</th><th>2</th><th>S 1+2</th><th>S 1+N+2</th><th>Moy</th><th>Résultat</th></tr></thead>
           <tbody></tbody>
         </table>
       </div>
@@ -123,156 +115,132 @@
 
   <script src='https://unpkg.com/tesseract.js@v5.0.0/dist/tesseract.min.js'></script>
   <script>
-    const oddsArea = document.getElementById('oddsArea');
-    const resultsArea = document.getElementById('resultsArea');
+    // éléments du DOM
     const oddsInput = document.getElementById('oddsInput');
     const resultsInput = document.getElementById('resultsInput');
     const analyzeBtn = document.getElementById('analyzeBtn');
     const resultCard = document.getElementById('resultCard');
-    const matchTableBody = document.querySelector('#matchTable tbody');
+    const tbody = document.querySelector('#matchTable tbody');
     const statusDiv = document.getElementById('status');
     const debugArea = document.getElementById('debugArea');
-    const oddsTextDebug = document.getElementById('oddsTextDebug');
-    const resultsTextDebug = document.getElementById('resultsTextDebug');
+    const oddsDebug = document.getElementById('oddsDebug');
+    const resultsDebug = document.getElementById('resultsDebug');
+    const oddsArea = document.getElementById('oddsArea');
+    const resultsArea = document.getElementById('resultsArea');
     let oddsFile = null, resultsFile = null;
 
-    oddsArea.addEventListener('click', () => oddsInput.click());
-    resultsArea.addEventListener('click', () => resultsInput.click());
-    oddsInput.addEventListener('change', () => { oddsFile = oddsInput.files[0]; checkFiles(); });
-    resultsInput.addEventListener('change', () => { resultsFile = resultsInput.files[0]; checkFiles(); });
+    oddsArea.onclick = () => oddsInput.click();
+    resultsArea.onclick = () => resultsInput.click();
+    oddsInput.onchange = () => { oddsFile = oddsInput.files[0]; checkFiles(); };
+    resultsInput.onchange = () => { resultsFile = resultsInput.files[0]; checkFiles(); };
     function checkFiles() { analyzeBtn.disabled = !(oddsFile && resultsFile); }
 
-    function normalize(name) {
-      return name.toLowerCase().replace(/[^a-z]/g, '');
-    }
+    // Normalisation pour fusion
+    const normalize = s => s.toLowerCase().replace(/[^a-z]/g, '');
 
-    // Extraction des cotes
+    // Extraction des cotes (supporte 2 ou 3 cotes)
     function extractOdds(text) {
-      const lines = text.split('\n').map(l => l.trim()).filter(l => l.length > 0);
-      const matches = [];
-      const teamRegex = /^[-–—•\s]*([A-Za-z0-9&.\- '’]+)$/;
-      const oddRegex = /^\d+[.,]\d+$/;
+      const lines = text.split('\n').map(l => l.trim()).filter(l => l);
+      const teams = [];
+      const oddRegex = /(\d+[.,]\d+)/g;
       let i = 0;
-      while (i < lines.length) {
-        if (teamRegex.test(lines[i]) && i + 1 < lines.length) {
-          const t1 = lines[i].match(teamRegex)[1].trim();
-          if (oddRegex.test(lines[i+1])) { i++; continue; } // ignorer si ligne suivante est une cote
-          if (teamRegex.test(lines[i+1])) {
-            const t2 = lines[i+1].match(teamRegex)[1].trim();
-            let homeOdd = null, drawOdd = null, awayOdd = null;
-            for (let j = 2; j <= 5 && i + j < lines.length; j++) {
-              if (oddRegex.test(lines[i+j])) {
-                if (!homeOdd) homeOdd = lines[i+j].replace(',', '.');
-                else if (!drawOdd) drawOdd = lines[i+j].replace(',', '.');
-                else { awayOdd = lines[i+j].replace(',', '.'); break; }
-              }
+      // Chercher les paires d'équipes (deux lignes consécutives commençant par une lettre)
+      while (i < lines.length - 1) {
+        const line1 = lines[i].replace(/^[^a-zA-Z]+/, ''); // virer symboles début
+        const line2 = lines[i+1].replace(/^[^a-zA-Z]+/, '');
+        if (/^[A-Za-z]/.test(line1) && /^[A-Za-z]/.test(line2) && !oddRegex.test(line1) && !oddRegex.test(line2)) {
+          // équipe potentielle
+          const t1 = line1.replace(/[^A-Za-z .'-]/g, '').trim();
+          const t2 = line2.replace(/[^A-Za-z .'-]/g, '').trim();
+          if (t1 && t2) {
+            // Chercher les cotes dans les lignes suivantes (max 3 lignes)
+            let odds = [];
+            for (let j = i+2; j < Math.min(i+6, lines.length); j++) {
+              const nums = lines[j].match(oddRegex);
+              if (nums) odds.push(...nums.map(n => n.replace(',', '.')));
+              if (odds.length >= 3) break;
             }
-            if (homeOdd || awayOdd) {
-              // Si seulement 2 cotes, on considère que ce sont 1 et 2 (sans N)
-              if (homeOdd && !drawOdd && awayOdd) {
-                // rien à faire, c'est déjà 1 et 2
-              } else if (homeOdd && drawOdd && !awayOdd) {
-                // seulement deux cotes et la deuxième est N en fait? rare
-              }
-              matches.push({
+            if (odds.length >= 2) {
+              let homeOdd = odds[0];
+              let drawOdd = odds.length === 3 ? odds[1] : null;
+              let awayOdd = odds.length === 3 ? odds[2] : odds[1];
+              teams.push({
                 team1: t1,
                 team2: t2,
                 homeOdd: homeOdd || null,
                 drawOdd: drawOdd || null,
                 awayOdd: awayOdd || null
               });
-              i += 2 + (homeOdd?1:0) + (drawOdd?1:0) + (awayOdd?1:0);
+              i += 2 + (odds.length === 2 ? 2 : 3);
               continue;
             }
           }
         }
         i++;
       }
-      return matches;
+      return teams;
     }
 
-    // Extraction des résultats (améliorée avec MT:)
+    // Extraction des résultats (basé sur pattern Équipe1 [score] Équipe2)
     function extractResults(text) {
-      const lines = text.split('\n').map(l => l.trim()).filter(l => l.length > 0);
+      const lines = text.split('\n').map(l => l.trim()).filter(l => l);
       const results = {};
-      for (let i = 0; i < lines.length; i++) {
-        // Ligne MT: X:Y -> score final
-        const mtMatch = lines[i].match(/MT\s*:\s*(\d+)\s*:\s*(\d+)/);
-        if (mtMatch) {
-          const score = `${mtMatch[1]}-${mtMatch[2]}`;
-          // L'équipe est la ligne précédente qui contient du texte (nom d'équipe)
-          let team = null;
-          for (let j = i-1; j >= 0; j--) {
-            const line = lines[j];
-            // Exclure les lignes de minutes (ex: "21'")
-            if (/^\d+'$/.test(line) || /^MT:/.test(line) || !/[A-Za-z]/.test(line)) continue;
-            team = line.replace(/\d+'/g, '').trim();
-            break;
-          }
-          if (!team) {
-            // chercher après
-            for (let j = i+1; j < lines.length; j++) {
-              const line = lines[j];
-              if (/^\d+'$/.test(line) || /^MT:/.test(line) || !/[A-Za-z]/.test(line)) continue;
-              team = line.replace(/\d+'/g, '').trim();
-              break;
-            }
-          }
-          if (team) results[normalize(team)] = score;
+      // Pattern 1: "Équipe1 (score | Équipe2" ou "Équipe1 [score] Équipe2"
+      const pattern = /^[^a-zA-Z]*([A-Za-z .'-]+?)\s*[\(\[][ ]*(\d+)\s*[-:]\s*(\d+)[ ]*[\)\]|]\s*([A-Za-z .'-]+)/;
+      for (const line of lines) {
+        const m = line.match(pattern);
+        if (m) {
+          const team1 = m[1].trim();
+          const score1 = m[2];
+          const score2 = m[3];
+          const team2 = m[4].trim();
+          const score = `${score1}-${score2}`;
+          results[normalize(team1)] = score;
+          results[normalize(team2)] = score; // on associe aussi l'équipe2
         }
-        // Ligne score direct (ex: "0:1") sans MT
-        const scoreMatch = lines[i].match(/^(\d+)\s*[-:]\s*(\d+)/);
-        if (scoreMatch && !lines[i].includes('MT')) {
-          const score = `${scoreMatch[1]}-${scoreMatch[2]}`;
-          let team = null;
-          for (let j = i-1; j >= 0; j--) {
-            const line = lines[j];
-            if (/^\d+'$/.test(line) || /^MT:/.test(line) || !/[A-Za-z]/.test(line)) continue;
-            team = line.replace(/\d+'/g, '').trim();
-            break;
-          }
-          if (!team) {
-            for (let j = i+1; j < lines.length; j++) {
-              const line = lines[j];
-              if (/^\d+'$/.test(line) || /^MT:/.test(line) || !/[A-Za-z]/.test(line)) continue;
-              team = line.replace(/\d+'/g, '').trim();
-              break;
-            }
-          }
-          if (team) results[normalize(team)] = score;
+      }
+      // Pattern 2: "Équipe1 score Équipe2" (ex: "Tanzania 0:1 Algeria")
+      const pattern2 = /^([A-Za-z .'-]+?)\s+(\d+)\s*:\s*(\d+)\s+([A-Za-z .'-]+)/;
+      for (const line of lines) {
+        const m = line.match(pattern2);
+        if (m) {
+          const team1 = m[1].trim();
+          const score = `${m[2]}-${m[3]}`;
+          const team2 = m[4].trim();
+          results[normalize(team1)] = score;
+          results[normalize(team2)] = score;
         }
       }
       return results;
     }
 
-    analyzeBtn.addEventListener('click', async () => {
+    analyzeBtn.onclick = async () => {
       analyzeBtn.disabled = true;
       statusDiv.innerHTML = '<span class="spinner"></span> OCR en cours...';
       resultCard.style.display = 'none';
       debugArea.style.display = 'none';
 
       try {
-        const [oddsResult, resultsResult] = await Promise.all([
+        const [oddsRes, resultsRes] = await Promise.all([
           Tesseract.recognize(oddsFile, 'eng', { tessedit_pageseg_mode: Tesseract.PSM.SINGLE_BLOCK }),
           Tesseract.recognize(resultsFile, 'eng', { tessedit_pageseg_mode: Tesseract.PSM.SINGLE_BLOCK })
         ]);
 
-        const oddsText = oddsResult.data.text;
-        const resultsText = resultsResult.data.text;
-
-        // Afficher le texte brut pour debug
-        oddsTextDebug.textContent = oddsText;
-        resultsTextDebug.textContent = resultsText;
+        const oddsText = oddsRes.data.text;
+        const resultsText = resultsRes.data.text;
+        oddsDebug.textContent = oddsText;
+        resultsDebug.textContent = resultsText;
         debugArea.style.display = 'block';
 
-        // Extraction
-        let matches = extractOdds(oddsText);
+        const matches = extractOdds(oddsText);
         const results = extractResults(resultsText);
 
-        // Fusion
+        // Fusion et calculs
         matches.forEach(m => {
-          const key = normalize(m.team1);
-          m.result = results[key] || '–';
+          const key1 = normalize(m.team1);
+          const key2 = normalize(m.team2);
+          // Chercher le résultat dans l'une ou l'autre clé
+          m.result = results[key1] || results[key2] || '–';
           const h = parseFloat(m.homeOdd);
           const d = parseFloat(m.drawOdd);
           const a = parseFloat(m.awayOdd);
@@ -289,41 +257,37 @@
           }
         });
 
-        matchTableBody.innerHTML = '';
+        // Rendu
+        tbody.innerHTML = '';
         matches.forEach(m => {
-          const row = document.createElement('tr');
-          row.innerHTML = `
-            <td>${m.team1}</td><td>${m.team2}</td>
-            <td>${m.homeOdd || '–'}</td><td>${m.drawOdd || '–'}</td><td>${m.awayOdd || '–'}</td>
-            <td>${m.sum12}</td><td>${m.sum1N2}</td><td>${m.mean}</td>
-            <td>${m.result}</td>
-          `;
-          matchTableBody.appendChild(row);
+          const tr = document.createElement('tr');
+          tr.innerHTML = `<td>${m.team1}</td><td>${m.team2}</td>
+            <td>${m.homeOdd||'–'}</td><td>${m.drawOdd||'–'}</td><td>${m.awayOdd||'–'}</td>
+            <td>${m.sum12}</td><td>${m.sum1N2}</td><td>${m.mean}</td><td>${m.result}</td>`;
+          tbody.appendChild(tr);
         });
-
         resultCard.style.display = 'block';
         statusDiv.innerHTML = '';
-        window.extractedMatches = matches;
+        window._matches = matches;
       } catch (err) {
-        statusDiv.innerHTML = `<div class="error">❌ Erreur : ${err.message}</div>`;
+        statusDiv.innerHTML = `<div class="error">❌ ${err.message}</div>`;
       } finally {
         analyzeBtn.disabled = false;
       }
-    });
+    };
 
-    // Boutons Copier et CSV (inchangés)
-    document.getElementById('copyBtn').addEventListener('click', () => {
-      const matches = window.extractedMatches || [];
-      const lines = matches.map(m =>
+    // Boutons copier / CSV
+    document.getElementById('copyBtn').onclick = () => {
+      if (!window._matches) return;
+      const lines = window._matches.map(m =>
         `${m.team1}\t${m.team2}\t${m.homeOdd||'-'}\t${m.drawOdd||'-'}\t${m.awayOdd||'-'}\t${m.sum12||'-'}\t${m.sum1N2||'-'}\t${m.mean||'-'}\t${m.result||'-'}`
       ).join('\n');
       navigator.clipboard.writeText(lines).then(() => alert('Tableau copié !'));
-    });
-
-    document.getElementById('csvBtn').addEventListener('click', () => {
-      const matches = window.extractedMatches || [];
+    };
+    document.getElementById('csvBtn').onclick = () => {
+      if (!window._matches) return;
       let csv = 'Équipe 1,Équipe 2,1,N,2,Somme 1+2,Somme 1+N+2,Moyenne,Résultat\n';
-      matches.forEach(m => {
+      window._matches.forEach(m => {
         csv += `"${m.team1}","${m.team2}",${m.homeOdd||''},${m.drawOdd||''},${m.awayOdd||''},${m.sum12||''},${m.sum1N2||''},${m.mean||''},"${m.result||''}"\n`;
       });
       const blob = new Blob([csv], { type: 'text/csv' });
@@ -331,7 +295,7 @@
       a.href = URL.createObjectURL(blob);
       a.download = 'matchs_fusion.csv';
       a.click();
-    });
+    };
   </script>
 </body>
 </html>
