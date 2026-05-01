@@ -1,16 +1,11 @@
 {
-  "name": "bet261-auto",
+  "name": "bet261-cotes",
   "version": "1.0.0",
   "scripts": {
-    "dev": "next dev",
-    "build": "next build",
-    "start": "next start"
+    "build": ""
   },
   "dependencies": {
-    "next": "^14",
-    "react": "^18",
-    "react-dom": "^18",
-    "puppeteer-core": "^22",
-    "@sparticuz/chromium": "^121"
+    "puppeteer-core": "^22.0.0",
+    "@sparticuz/chromium": "^123.0.0"
   }
 }
