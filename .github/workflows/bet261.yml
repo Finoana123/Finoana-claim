@@ -1,0 +1,32 @@
+name: Bet261 - Cotes Virtuelles
+
+on:
+  workflow_dispatch:
+    inputs:
+      phone:
+        description: 'Numéro de téléphone Bet261'
+        required: true
+      password:
+        description: 'Mot de passe Bet261'
+        required: true
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Installer Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Installer les dépendances
+        run: npm install
+
+      - name: Lancer le script
+        env:
+          PHONE: ${{ github.event.inputs.phone }}
+          PASSWORD: ${{ github.event.inputs.password }}
+        run: node script.js
