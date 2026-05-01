@@ -3,6 +3,8 @@
   "version": "1.0.0",
   "main": "script.js",
   "dependencies": {
-    "puppeteer-real-browser": "^1.0.0"
+    "puppeteer": "^24.0.0",
+    "puppeteer-extra": "^3.3.6",
+    "puppeteer-extra-plugin-stealth": "^2.11.2"
   }
 }
