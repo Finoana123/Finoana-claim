@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Bet261 – Fusion définitive</title>
+  <title>Bet261 – Fusion propre</title>
   <style>
     :root {
       --primary: #1a73e8;
@@ -67,9 +67,9 @@
 <body>
   <div class="container">
     <div class="header">
-      <h1>⚽ Bet261 – Fusion cotes + résultats</h1>
-      <p><strong>1.</strong> Sélectionnez la capture des <strong>cotes</strong> (avant match).<br>
-      <strong>2.</strong> Puis la capture des <strong>résultats</strong> (après match).</p>
+      <h1>⚽ Bet261 – Fusion propre</h1>
+      <p><strong>1.</strong> Capture des <strong>cotes</strong> (avant match).<br>
+      <strong>2.</strong> Capture des <strong>résultats</strong> (après match).</p>
     </div>
 
     <div class="upload-row">
@@ -116,7 +116,7 @@
 
   <script src='https://unpkg.com/tesseract.js@v5.0.0/dist/tesseract.min.js'></script>
   <script>
-    // --- DOM elements ---
+    // DOM
     const oddsInput = document.getElementById('oddsInput');
     const resultsInput = document.getElementById('resultsInput');
     const analyzeBtn = document.getElementById('analyzeBtn');
@@ -136,34 +136,37 @@
     resultsInput.onchange = () => { resultsFile = resultsInput.files[0]; checkFiles(); };
     function checkFiles() { analyzeBtn.disabled = !(oddsFile && resultsFile); }
 
-    // --- Helpers ---
+    // Stop words à ignorer
+    const STOP_WORDS = new Set(['se', 'connecter', 'inscrire', 'menu', 'virtuel', 'mes', 'paris', 's\'inscrire']);
+
+    // Nettoyage + filtre
     function cleanName(str) {
-      // Garde lettres, espaces, apostrophes, tirets ; vire tout le reste
+      // Supprimer tout ce qui n'est pas lettres, espaces, apostrophes, tirets
       let name = str.replace(/[^A-Za-z '-]/g, ' ').trim();
-      // Supprime les mots de moins de 2 lettres
-      name = name.split(/\s+/).filter(w => w.length >= 2).join(' ');
-      return name.trim();
+      // Séparer en mots
+      let tokens = name.split(/\s+/).filter(w => w.length >= 2 && !STOP_WORDS.has(w.toLowerCase()));
+      if (tokens.length === 0) return '';
+      // Remettre en forme (première lettre capitale)
+      tokens = tokens.map(t => t.charAt(0).toUpperCase() + t.slice(1).toLowerCase());
+      return tokens.join(' ');
     }
 
     const normalize = s => s.toLowerCase().replace(/[^a-z]/g, '');
 
-    // --- Extraction des cotes (image 1) ---
+    // Extraction des cotes (image 1)
     function extractOdds(text) {
       const lines = text.split('\n').map(l => l.trim()).filter(l => l.length > 0);
       const matches = [];
-      // Repérer toutes les lignes qui contiennent un nombre décimal
       const numberLines = [];
       lines.forEach((line, idx) => {
         const nums = line.match(/\d+[.,]\d+/g);
         if (nums) numberLines.push({ idx, nums: nums.map(n => n.replace(',', '.')) });
       });
 
-      // Pour chaque groupe de nombres consécutifs, chercher les équipes au-dessus
       let processedIdx = new Set();
       for (let i = 0; i < numberLines.length; i++) {
         if (processedIdx.has(i)) continue;
         const current = numberLines[i];
-        // Regrouper les lignes de nombres adjacentes (moins de 3 lignes d'écart)
         let group = [current];
         let lastIdx = current.idx;
         for (let j = i+1; j < numberLines.length; j++) {
@@ -174,19 +177,16 @@
             break;
           }
         }
-        // Aplatir tous les nombres de ce groupe
         let allOdds = [];
         group.forEach(g => allOdds.push(...g.nums));
-        // On ne garde que le premier triplet (ou paire) pour cette rencontre
-        const odds = allOdds.slice(0, 3); // prend jusqu'à 3 cotes
+        const odds = allOdds.slice(0, 3);
         if (odds.length < 2) continue;
 
-        // Rechercher les deux équipes juste au-dessus du premier nombre du groupe
         const firstIdx = group[0].idx;
         let team1 = '', team2 = '';
         for (let j = firstIdx - 1; j >= 0; j--) {
           const candidate = cleanName(lines[j]);
-          if (candidate && !/^\d+[.,]\d+$/.test(lines[j]) && !/^\d+[']/.test(lines[j])) {
+          if (candidate && !/^\d+[.,]\d+$/.test(lines[j]) && !/^\d+'/.test(lines[j])) {
             if (!team1) {
               team1 = candidate;
             } else if (!team2) {
@@ -195,12 +195,12 @@
             }
           }
         }
-        // Si on n'a pas trouvé les deux, chercher aussi au-dessus de la deuxième ligne du groupe
+
         if (!team2 && group.length > 1) {
           const secondIdx = group[1].idx;
           for (let j = secondIdx - 1; j >= 0 && j >= firstIdx; j--) {
             const candidate = cleanName(lines[j]);
-            if (candidate && !/^\d+[.,]\d+$/.test(lines[j]) && !/^\d+[']/.test(lines[j])) {
+            if (candidate && !/^\d+[.,]\d+$/.test(lines[j]) && !/^\d+'/.test(lines[j])) {
               if (!team1) team1 = candidate;
               else if (!team2) { team2 = candidate; break; }
             }
@@ -208,12 +208,10 @@
         }
 
         if (team1 && team2) {
-          // Déduire les cotes
           const homeOdd = odds[0] || null;
           const drawOdd = odds.length === 3 ? odds[1] : null;
           const awayOdd = odds.length === 3 ? odds[2] : odds[1];
           matches.push({ team1, team2, homeOdd, drawOdd, awayOdd });
-          // Marquer les indices comme traités
           group.forEach(g => processedIdx.add(numberLines.indexOf(g)));
           i += group.length - 1;
         }
@@ -221,18 +219,15 @@
       return matches;
     }
 
-    // --- Extraction des résultats (image 2) ---
+    // Extraction des résultats (image 2)
     function extractResults(text) {
       const lines = text.split('\n').map(l => l.trim()).filter(l => l.length > 0);
       const results = {};
-      // Pattern 1 : "Équipe (score] Équipe2" ou "Équipe [score] Équipe2"
       const patternBracket = /^[^a-zA-Z]*([A-Za-z .'-]+?)\s*[\[\(]\s*(\d+)\s*[-:]\s*(\d+)\s*[\]\)]\s*([A-Za-z .'-]+)?/;
-      // Pattern 2 : "Équipe1 score Équipe2" (sans crochets)
       const patternPlain = /^[^a-zA-Z]*([A-Za-z .'-]+?)\s+(\d+)\s*[-:]\s*(\d+)\s+([A-Za-z .'-]+)/;
       
       for (let i = 0; i < lines.length; i++) {
         let line = lines[i];
-        // Essayer pattern bracket
         let m = line.match(patternBracket);
         if (m) {
           const team1 = cleanName(m[1]);
@@ -244,7 +239,6 @@
           }
           continue;
         }
-        // Essayer pattern plain
         m = line.match(patternPlain);
         if (m) {
           const team1 = cleanName(m[1]);
@@ -255,11 +249,9 @@
             results[normalize(team2)] = score;
           }
         }
-        // Chercher aussi une ligne de score isolée (ex: "1:2") et regarder autour
         const scoreOnly = line.match(/^(\d+)\s*[-:]\s*(\d+)$/);
         if (scoreOnly) {
           const score = `${scoreOnly[1]}-${scoreOnly[2]}`;
-          // équipe au dessus
           let team = null;
           for (let j = i-1; j >= 0 && j >= i-2; j--) {
             const candidate = cleanName(lines[j]);
@@ -274,7 +266,7 @@
       return results;
     }
 
-    // --- Fonction principale ---
+    // Main
     analyzeBtn.onclick = async () => {
       analyzeBtn.disabled = true;
       statusDiv.innerHTML = '<span class="spinner"></span> OCR en cours...';
@@ -282,7 +274,6 @@
       debugArea.style.display = 'none';
 
       try {
-        // Lancer les deux OCR en parallèle
         const [oddsRes, resultsRes] = await Promise.all([
           Tesseract.recognize(oddsFile, 'eng', { tessedit_pageseg_mode: Tesseract.PSM.SINGLE_BLOCK }),
           Tesseract.recognize(resultsFile, 'eng', { tessedit_pageseg_mode: Tesseract.PSM.SINGLE_BLOCK })
@@ -294,13 +285,9 @@
         resultsDebug.textContent = resultsText;
         debugArea.style.display = 'block';
 
-        // Extraire les données
         const matches = extractOdds(oddsText);
         const results = extractResults(resultsText);
-        console.log('Matches extraits des cotes :', matches);
-        console.log('Résultats extraits :', results);
 
-        // Fusion et calculs
         matches.forEach(m => {
           const key1 = normalize(m.team1);
           const key2 = normalize(m.team2);
@@ -321,19 +308,14 @@
           }
         });
 
-        // Rendu du tableau
         tbody.innerHTML = '';
-        if (matches.length === 0) {
-          tbody.innerHTML = '<tr><td colspan="9">Aucune donnée extraite. Vérifiez les images.</td></tr>';
-        } else {
-          matches.forEach(m => {
-            const tr = document.createElement('tr');
-            tr.innerHTML = `<td>${m.team1}</td><td>${m.team2}</td>
-              <td>${m.homeOdd||'–'}</td><td>${m.drawOdd||'–'}</td><td>${m.awayOdd||'–'}</td>
-              <td>${m.sum12}</td><td>${m.sum1N2}</td><td>${m.mean}</td><td>${m.result}</td>`;
-            tbody.appendChild(tr);
-          });
-        }
+        matches.forEach(m => {
+          const tr = document.createElement('tr');
+          tr.innerHTML = `<td>${m.team1}</td><td>${m.team2}</td>
+            <td>${m.homeOdd||'–'}</td><td>${m.drawOdd||'–'}</td><td>${m.awayOdd||'–'}</td>
+            <td>${m.sum12}</td><td>${m.sum1N2}</td><td>${m.mean}</td><td>${m.result}</td>`;
+          tbody.appendChild(tr);
+        });
         resultCard.style.display = 'block';
         statusDiv.innerHTML = '';
         window._matches = matches;
@@ -344,16 +326,16 @@
       }
     };
 
-    // Boutons copier/CSV
+    // Copier / CSV
     document.getElementById('copyBtn').onclick = () => {
-      if (!window._matches || window._matches.length === 0) return;
+      if (!window._matches || !window._matches.length) return;
       const lines = window._matches.map(m =>
         `${m.team1}\t${m.team2}\t${m.homeOdd||'-'}\t${m.drawOdd||'-'}\t${m.awayOdd||'-'}\t${m.sum12||'-'}\t${m.sum1N2||'-'}\t${m.mean||'-'}\t${m.result||'-'}`
       ).join('\n');
       navigator.clipboard.writeText(lines).then(() => alert('Tableau copié !'));
     };
     document.getElementById('csvBtn').onclick = () => {
-      if (!window._matches || window._matches.length === 0) return;
+      if (!window._matches || !window._matches.length) return;
       let csv = 'Équipe 1,Équipe 2,1,N,2,Somme 1+2,Somme 1+N+2,Moyenne,Résultat\n';
       window._matches.forEach(m => {
         csv += `"${m.team1}","${m.team2}",${m.homeOdd||''},${m.drawOdd||''},${m.awayOdd||''},${m.sum12||''},${m.sum1N2||''},${m.mean||''},"${m.result||''}"\n`;
