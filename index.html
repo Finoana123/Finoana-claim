@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Bet261 – Fusion Cotes + Résultats (rapide)</title>
+  <title>Bet261 – Fusion Cotes + Résultats (local, rapide)</title>
   <style>
     :root {
       --primary: #1a73e8;
@@ -23,13 +23,10 @@
     .header { text-align: center; margin-bottom: 2rem; }
     .header h1 { font-weight: 400; font-size: 2rem; margin: 0 0 0.5rem; }
     .header p { color: #5f6368; }
-    .upload-row {
-      display: flex; gap: 1rem; flex-wrap: wrap;
-    }
+    .upload-row { display: flex; gap: 1rem; flex-wrap: wrap; }
     .upload-card {
       flex: 1 1 250px; background: var(--card-bg);
-      border-radius: 12px; padding: 1.5rem;
-      box-shadow: 0 1px 4px rgba(0,0,0,0.1);
+      border-radius: 12px; padding: 1.5rem; box-shadow: 0 1px 4px rgba(0,0,0,0.1);
     }
     .upload-area {
       border: 2px dashed var(--border); border-radius: 8px;
@@ -115,7 +112,6 @@
     </div>
   </div>
 
-  <!-- Tesseract.js depuis CDN -->
   <script src='https://unpkg.com/tesseract.js@v5.0.0/dist/tesseract.min.js'></script>
   <script>
     const oddsArea = document.getElementById('oddsArea');
@@ -134,7 +130,7 @@
     resultsInput.addEventListener('change', () => { resultsFile = resultsInput.files[0]; checkFiles(); });
     function checkFiles() { analyzeBtn.disabled = !(oddsFile && resultsFile); }
 
-    // Normaliser un nom d'équipe pour la fusion
+    // Normalisation pour correspondance des résultats
     function normalize(name) {
       return name.toLowerCase().replace(/[^a-z]/g, '');
     }
@@ -143,49 +139,59 @@
     function extractOdds(text) {
       const lines = text.split('\n').map(l => l.trim()).filter(l => l.length > 0);
       const matches = [];
-      const teamRegex = /^[-•\s]*([A-Za-z0-9&. '’-]+)$/;
+      const teamRegex = /^[-–—•\s]*([A-Za-z0-9&.\- '’]+)$/;  // accepte les tirets, points, espaces
       const oddRegex = /^\d+[.,]\d+$/;
       let i = 0;
       while (i < lines.length) {
+        // Si la ligne actuelle ressemble à un nom d'équipe
         if (teamRegex.test(lines[i]) && i + 1 < lines.length) {
           const t1 = lines[i].match(teamRegex)[1].trim();
-          const t2 = lines[i + 1].match(teamRegex)?.[1]?.trim();
-          if (t2) {
+          // Vérifier que la ligne suivante n'est pas une cote (pour éviter de confondre équipe seule avec cote)
+          if (oddRegex.test(lines[i+1])) {
+            // Cas où l'équipe 1 est suivie directement d'une cote -> alors il n'y a pas d'équipe 2 ? Non, car on a besoin de deux équipes. Ce serait un bug.
+            i++;
+            continue;
+          }
+          if (teamRegex.test(lines[i+1])) {
+            const t2 = lines[i+1].match(teamRegex)[1].trim();
+            // Chercher les cotes dans les lignes suivantes (maximum 3 lignes après)
             let homeOdd = null, drawOdd = null, awayOdd = null;
-            if (i + 2 < lines.length && oddRegex.test(lines[i + 2])) {
-              homeOdd = lines[i + 2];
-              if (i + 3 < lines.length && oddRegex.test(lines[i + 3])) {
-                // au moins 2 cotes
-                awayOdd = lines[i + 3]; // supposons 1 et 2
-                drawOdd = null;
-                if (i + 4 < lines.length && oddRegex.test(lines[i + 4])) {
-                  // 3 cotes : 1, N, 2
-                  drawOdd = awayOdd;
-                  awayOdd = lines[i + 4];
-                  i += 5;
+            let j = 2;
+            for (; j <= 5 && i + j < lines.length; j++) {
+              if (oddRegex.test(lines[i+j])) {
+                if (!homeOdd) {
+                  homeOdd = lines[i+j];
+                } else if (!drawOdd) {
+                  drawOdd = lines[i+j];
                 } else {
-                  i += 4; // seulement 1 et 2
+                  awayOdd = lines[i+j];
+                  break;
                 }
-              } else {
-                i += 3; // 1 seule cote ? on ignore
-                continue;
               }
-            } else {
-              i += 2; // pas de cotes
+            }
+            if (homeOdd && awayOdd) {
+              // Si on a trouvé au moins la 1ère et la 3ème, mais drawOdd est peut-être la cote nulle
+              // Dans le format à 2 cotes (1 et 2 sans N), drawOdd contient en fait awayOdd
+              if (!drawOdd) {
+                awayOdd = homeOdd; // réajustement : si deux cotes only, on les lit comme 1 et 2
+                homeOdd = null;
+              }
+              matches.push({
+                team1: t1,
+                team2: t2,
+                homeOdd: homeOdd ? homeOdd.replace(',', '.') : null,
+                drawOdd: drawOdd ? drawOdd.replace(',', '.') : null,
+                awayOdd: awayOdd ? awayOdd.replace(',', '.') : null
+              });
+              i += j; // avancer après le bloc
               continue;
             }
-            matches.push({
-              team1: t1,
-              team2: t2,
-              homeOdd: homeOdd?.replace(',', '.'),
-              drawOdd: drawOdd?.replace(',', '.'),
-              awayOdd: awayOdd?.replace(',', '.')
-            });
-            continue;
           }
         }
         i++;
       }
+      // Post-traitement pour le cas à deux cotes (1 et 2 uniquement)
+      // On réorganise si drawOdd est en fait le 2 et awayOdd le N ? Non, on garde la logique simple
       return matches;
     }
 
@@ -193,13 +199,30 @@
     function extractResults(text) {
       const lines = text.split('\n').map(l => l.trim()).filter(l => l.length > 0);
       const results = {};
-      for (let i = 0; i < lines.length - 1; i++) {
-        const team1Match = lines[i].match(/^([A-Za-z\s&.-]+)$/);
-        const scoreMatch = lines[i + 1].match(/^(\d+)\s*:\s*(\d+)$/);
-        if (team1Match && scoreMatch) {
-          const team1 = team1Match[1].trim();
-          results[normalize(team1)] = `${scoreMatch[1]}-${scoreMatch[2]}`;
-          i++; // skip next line
+      for (let i = 0; i < lines.length; i++) {
+        // Détecter une ligne de score (ex: "0:1" ou "1:0" ou "2-0")
+        const scoreMatch = lines[i].match(/^(\d+)\s*[-:]\s*(\d+)/);
+        if (scoreMatch) {
+          const score = `${scoreMatch[1]}-${scoreMatch[2]}`;
+          // L'équipe correspondante est généralement la ligne précédente (ou deux lignes avant si une ligne d'info minute)
+          let team = null;
+          if (i > 0) {
+            const prev = lines[i-1];
+            // Nettoyer les annotations comme "MT: 1:0" ou "21'" pour récupérer le nom d'équipe
+            const cleanPrev = prev.replace(/\d+'/g, '').replace(/MT:\s*\d+:\d+/g, '').trim();
+            if (cleanPrev && /^[A-Za-z]/.test(cleanPrev)) {
+              team = cleanPrev;
+            }
+          }
+          if (!team && i > 1) {
+            const prevPrev = lines[i-2].replace(/\d+'/g, '').replace(/MT:\s*\d+:\d+/g, '').trim();
+            if (/^[A-Za-z]/.test(prevPrev)) {
+              team = prevPrev;
+            }
+          }
+          if (team) {
+            results[normalize(team)] = score;
+          }
         }
       }
       return results;
@@ -211,10 +234,9 @@
       resultCard.style.display = 'none';
 
       try {
-        // Lancer les deux OCR en parallèle
         const [oddsResult, resultsResult] = await Promise.all([
-          Tesseract.recognize(oddsFile, 'eng'),
-          Tesseract.recognize(resultsFile, 'eng')
+          Tesseract.recognize(oddsFile, 'eng', { tessedit_pageseg_mode: Tesseract.PSM.SINGLE_BLOCK }),
+          Tesseract.recognize(resultsFile, 'eng', { tessedit_pageseg_mode: Tesseract.PSM.SINGLE_BLOCK })
         ]);
 
         const oddsText = oddsResult.data.text;
@@ -222,8 +244,7 @@
         console.log('Cotes OCR:', oddsText);
         console.log('Résultats OCR:', resultsText);
 
-        // Extraire les données
-        const matches = extractOdds(oddsText);
+        let matches = extractOdds(oddsText);
         const results = extractResults(resultsText);
 
         // Fusionner
@@ -231,8 +252,9 @@
           const key = normalize(m.team1);
           if (results[key]) {
             m.result = results[key];
+          } else {
+            m.result = '–';
           }
-          // Calculs
           const h = parseFloat(m.homeOdd);
           const d = parseFloat(m.drawOdd);
           const a = parseFloat(m.awayOdd);
@@ -240,29 +262,33 @@
             m.sum12 = (h + a).toFixed(2);
             m.sum1N2 = (h + d + a).toFixed(2);
             m.mean = ((h + d + a) / 3).toFixed(2);
-          } else if (!isNaN(h) && !isNaN(a)) {
+          } else if (!isNaN(h) && !isNaN(a) && isNaN(d)) {
             m.sum12 = (h + a).toFixed(2);
-            m.sum1N2 = null;
-            m.mean = null;
+            m.sum1N2 = '–';
+            m.mean = '–';
+          } else {
+            m.sum12 = '–';
+            m.sum1N2 = '–';
+            m.mean = '–';
           }
         });
 
-        // Afficher le tableau
+        // Affichage
         matchTableBody.innerHTML = '';
         matches.forEach(m => {
           const row = document.createElement('tr');
           row.innerHTML = `
             <td>${m.team1}</td><td>${m.team2}</td>
             <td>${m.homeOdd || '–'}</td><td>${m.drawOdd || '–'}</td><td>${m.awayOdd || '–'}</td>
-            <td>${m.sum12 || '–'}</td><td>${m.sum1N2 || '–'}</td><td>${m.mean || '–'}</td>
-            <td>${m.result || '–'}</td>
+            <td>${m.sum12}</td><td>${m.sum1N2}</td><td>${m.mean}</td>
+            <td>${m.result}</td>
           `;
           matchTableBody.appendChild(row);
         });
 
         resultCard.style.display = 'block';
         statusDiv.innerHTML = '';
-        window.extractedMatches = matches; // pour les boutons
+        window.extractedMatches = matches;
       } catch (err) {
         statusDiv.innerHTML = `<div class="error">❌ Erreur : ${err.message}</div>`;
       } finally {
@@ -270,7 +296,7 @@
       }
     });
 
-    // Gestion des boutons Copie et CSV
+    // Boutons Copier et CSV
     document.getElementById('copyBtn').addEventListener('click', () => {
       const matches = window.extractedMatches || [];
       const lines = matches.map(m =>
