@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Extraction des cotes – Bet261</title>
   <style>
-    body { font-family: sans-serif; max-width: 600px; margin: 2rem auto; }
+    body { font-family: sans-serif; max-width: 700px; margin: 2rem auto; }
     .upload-area { border: 2px dashed #aaa; padding: 2rem; text-align: center; cursor: pointer; }
     table { width: 100%; border-collapse: collapse; margin-top: 1rem; }
     th, td { border: 1px solid #ddd; padding: 0.4rem; text-align: left; }
@@ -64,33 +64,35 @@
       resultTable.style.display = 'none';
     }
 
-    // ---------- STOP WORDS ----------
+    // STOP WORDS (complétés avec les parasites observés)
     const STOP_WORDS = new Set([
-      'se', 'connecter', 'inscrire', 's\'inscrire',
-      'menu', 'virtuel', 'mes', 'paris',
-      'bonus', 'jouer', 'comporte', 'risques',
-      'restons', 'vigilants', 'bet', '261',
-      '1x2', 'mi-tps', 'double', 'chance', 'dc'
+      'se','connecter','inscrire','s\'inscrire','menu','virtuel','mes','paris',
+      'bonus','jouer','comporte','risques','restons','vigilants','bet','261',
+      '1x2','mi-tps','double','chance','dc','p','i','xv','yv','size'
     ]);
 
-    // ---------- NETTOYAGE RENFORCE ----------
+    // Nettoyage d'un nom d'équipe
     function cleanName(str) {
-      // Supprime tout sauf les lettres (avec accents), espaces, apostrophes, tirets
-      let cleaned = str.replace(/[^A-Za-z À-ÿ'-]/g, ' ').trim();
-      // Sépare en mots
+      let cleaned = str.replace(/[^A-Za-z À-ÿ'.]/g, ' ').trim();
       let tokens = cleaned.split(/\s+/).filter(w => w.length >= 2 && !STOP_WORDS.has(w.toLowerCase()));
       if (tokens.length === 0) return '';
-      // Ne garder que les tokens commençant par une majuscule (comme les vrais noms d'équipe)
+      // Garder seulement les tokens commençant par une majuscule (vrais noms)
       tokens = tokens.filter(t => /^[A-Z]/.test(t));
       return tokens.join(' ');
     }
 
-    // ---------- EXTRACTION DES COTES ----------
+    // Vérifier si une ligne est parasite (coordonnées, etc.)
+    function isParasiteLine(line) {
+      return /^(P:|I:|Xv:|Yv:|Size:|size:|Jouer|restons|©|\(|\)|\[|\]|2s bet261)/i.test(line) ||
+             /^\d+[.,]\d+\s*$/.test(line.trim()) === false && /^[^A-Za-z]*$/.test(line.trim());
+    }
+
+    // Extraction des cotes
     function extractOdds(text) {
-      const lines = text.split('\n').map(l => l.trim()).filter(l => l.length > 0);
+      const lines = text.split('\n').map(l => l.trim()).filter(l => l.length > 0 && !isParasiteLine(l));
       const matches = [];
+      // Repérer toutes les lignes contenant des nombres décimaux
       const numberLines = [];
-      // Repérer toutes les lignes qui contiennent un nombre décimal
       lines.forEach((line, idx) => {
         const nums = line.match(/\d+[.,]\d+/g);
         if (nums) numberLines.push({ idx, nums: nums.map(n => n.replace(',', '.')) });
@@ -113,19 +115,18 @@
 
         const firstIdx = group[0].idx;
         const teamLines = [];
-        // Chercher deux équipes valides au‑dessus du premier nombre
+        // Chercher deux équipes valides au-dessus du premier nombre
         for (let j = firstIdx - 1; j >= 0 && teamLines.length < 2; j--) {
           const raw = lines[j];
-          // Ignorer les lignes qui sont elles‑mêmes des nombres ou des minutes
-          if (/^\d+[.,]\d+$/.test(raw) || /^\d+'/.test(raw)) continue;
+          if (isParasiteLine(raw) || /^\d+[.,]\d+$/.test(raw) || /^\d+'/.test(raw)) continue;
           const name = cleanName(raw);
           if (name) teamLines.unshift(name);
         }
-        // Si on n'en a pas deux, chercher en dessous
+        // Si seulement une trouvée, chercher en dessous
         if (teamLines.length < 2) {
           for (let j = firstIdx + 1; j < lines.length && teamLines.length < 2; j++) {
             const raw = lines[j];
-            if (/^\d+[.,]\d+$/.test(raw) || /^\d+'/.test(raw)) continue;
+            if (isParasiteLine(raw) || /^\d+[.,]\d+$/.test(raw) || /^\d+'/.test(raw)) continue;
             const name = cleanName(raw);
             if (name) {
               teamLines.push(name);
@@ -147,7 +148,7 @@
       return matches;
     }
 
-    // ---------- ANALYSE ----------
+    // Analyse
     analyzeBtn.addEventListener('click', async () => {
       if (!selectedFile) return;
       analyzeBtn.disabled = true;
@@ -156,15 +157,11 @@
       resultTable.style.display = 'none';
 
       try {
-        // Prétraitement (noir & blanc)
         const preprocessed = await preprocessImage(selectedFile);
-        // Lancer Tesseract sur l'image prétraitée
         const { data } = await Tesseract.recognize(preprocessed, 'eng', {
           tessedit_pageseg_mode: Tesseract.PSM.SINGLE_BLOCK
         });
         const ocrText = data.text;
-
-        // Afficher le texte brut pour debug
         ocrTextDiv.textContent = ocrText;
         debugArea.style.display = 'block';
 
@@ -189,7 +186,6 @@
       }
     });
 
-    // ---------- PRETRAITEMENT ----------
     function preprocessImage(file) {
       return new Promise((resolve) => {
         const img = new Image();
