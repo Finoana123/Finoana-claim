@@ -113,180 +113,206 @@
     </div>
   </div>
 
-  <script src='https://unpkg.com/tesseract.js@v5.0.0/dist/tesseract.min.js'></script>
-  <script>
-    const oddsInput = document.getElementById('oddsInput');
-    const resultsInput = document.getElementById('resultsInput');
-    const analyzeBtn = document.getElementById('analyzeBtn');
-    const resultCard = document.getElementById('resultCard');
-    const tbody = document.querySelector('#matchTable tbody');
-    const statusDiv = document.getElementById('status');
-    const debugArea = document.getElementById('debugArea');
-    const oddsDebug = document.getElementById('oddsDebug');
-    const resultsDebug = document.getElementById('resultsDebug');
-    const oddsArea = document.getElementById('oddsArea');
-    const resultsArea = document.getElementById('resultsArea');
-    let oddsFile = null, resultsFile = null;
 
-    oddsArea.onclick = () => oddsInput.click();
-    resultsArea.onclick = () => resultsInput.click();
-    oddsInput.onchange = () => { oddsFile = oddsInput.files[0]; checkFiles(); };
-    resultsInput.onchange = () => { resultsFile = resultsInput.files[0]; checkFiles(); };
-    function checkFiles() { analyzeBtn.disabled = !(oddsFile && resultsFile); }
+  <script src="https://unpkg.com/tesseract.js@v5.0.0/dist/tesseract.min.js"></script>
 
-    // Nettoyage simple d'un nom d'équipe (supprime symboles, garde mots >2 lettres)
-    function cleanName(str) {
-      return str.replace(/[^A-Za-z '-]/g, ' ').split(/\s+/).filter(w => w.length >= 2).join(' ').trim();
+<script>
+const oddsInput = document.getElementById('oddsInput');
+const resultsInput = document.getElementById('resultsInput');
+const analyzeBtn = document.getElementById('analyzeBtn');
+const tbody = document.querySelector('#matchTable tbody');
+const resultCard = document.getElementById('resultCard');
+const statusDiv = document.getElementById('status');
+
+let oddsFile = null, resultsFile = null;
+
+oddsInput.onchange = () => { oddsFile = oddsInput.files[0]; check(); };
+resultsInput.onchange = () => { resultsFile = resultsInput.files[0]; check(); };
+
+function check() {
+  analyzeBtn.disabled = !(oddsFile && resultsFile);
+}
+
+function normalize(s) {
+  return s.toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^a-z0-9]/g, '');
+}
+
+function isOdd(text) {
+  return /^\d+[.,]\d+$/.test(text);
+}
+
+function isScore(text) {
+  return /^\d+[-:]\d+$/.test(text);
+}
+
+function clean(text) {
+  return text.replace(/[^A-Za-zÀ-ÖØ-öø-ÿ0-9 .'-]/g, '').trim();
+}
+
+async function ocrWithBoxes(file) {
+  const res = await Tesseract.recognize(file, 'eng', {
+    logger: m => console.log(m)
+  });
+
+  return res.data.words.map(w => ({
+    text: w.text,
+    x: w.bbox.x0,
+    y: w.bbox.y0
+  }));
+}
+
+function groupLines(words) {
+  const lines = [];
+
+  words.forEach(w => {
+    let line = lines.find(l => Math.abs(l.y - w.y) < 10);
+    if (!line) {
+      line = { y: w.y, words: [] };
+      lines.push(line);
     }
+    line.words.push(w);
+  });
 
-    // Normalisation pour correspondance
-    const normalize = s => s.toLowerCase().replace(/[^a-z]/g, '');
+  return lines.map(l =>
+    l.words.sort((a,b)=>a.x-b.x).map(w=>w.text)
+  );
+}
 
-    // Extraction des cotes : retourne [{team1, team2, homeOdd, drawOdd, awayOdd}]
-    function extractOdds(text) {
-      const lines = text.split('\n').map(l => l.trim()).filter(l => l.length > 0);
-      const matches = [];
-      const oddRegex = /\d+[.,]\d+/g;
-      let i = 0;
-      while (i < lines.length - 1) {
-        const line1 = lines[i];
-        const line2 = lines[i+1];
-        // Vérifier que les deux lignes consécutives ne sont pas des nombres
-        if (!/^\d+[.,]/.test(line1) && !/^\d+[.,]/.test(line2) && /[A-Za-z]/.test(line1) && /[A-Za-z]/.test(line2)) {
-          const team1 = cleanName(line1);
-          const team2 = cleanName(line2);
-          if (team1 && team2) {
-            // Chercher les cotes dans les 3 lignes suivantes
-            let odds = [];
-            for (let j = i+2; j < Math.min(i+5, lines.length); j++) {
-              const nums = lines[j].match(oddRegex);
-              if (nums) odds.push(...nums.map(n => n.replace(',', '.')));
-            }
-            if (odds.length >= 2) {
-              const homeOdd = odds[0] || null;
-              const drawOdd = odds.length === 3 ? odds[1] : null;
-              const awayOdd = odds.length === 3 ? odds[2] : odds[1];
-              matches.push({ team1, team2, homeOdd, drawOdd, awayOdd });
-              i += 2; // passer les deux équipes
-              continue;
-            }
-          }
-        }
-        i++;
+function extractMatchesFromOdds(lines) {
+  const matches = [];
+
+  for (let i = 0; i < lines.length; i++) {
+    const words = lines[i];
+
+    const odds = words.filter(isOdd);
+
+    if (odds.length >= 2) {
+
+      // chercher équipes autour
+      let team1 = '';
+      let team2 = '';
+
+      if (lines[i-1]) {
+        team1 = clean(lines[i-1].join(' '));
       }
-      return matches;
-    }
-
-    // Extraction des résultats : retourne { normalizedTeamName: score }
-    function extractResults(text) {
-      const lines = text.split('\n').map(l => l.trim()).filter(l => l.length > 0);
-      const results = {};
-      for (let i = 0; i < lines.length; i++) {
-        // Chercher un motif de score : deux nombres séparés par : ou -
-        const scoreMatch = lines[i].match(/(\d+)\s*[-:]\s*(\d+)/);
-        if (scoreMatch) {
-          const score = `${scoreMatch[1]}-${scoreMatch[2]}`;
-          // Récupérer le nom d'équipe dans la ligne précédente (ou celle d'avant si la ligne précédente est une minute)
-          let teamLine = null;
-          for (let j = i-1; j >= 0 && j >= i-2; j--) {
-            const candidate = lines[j].replace(/\d+'/g, '').replace(/MT\s*:\s*\d+:\d+/g, '').trim();
-            if (candidate && /[A-Za-z]/.test(candidate) && !/^\d+[.,]/.test(candidate)) {
-              teamLine = candidate;
-              break;
-            }
-          }
-          if (teamLine) {
-            const team = cleanName(teamLine);
-            if (team) {
-              results[normalize(team)] = score;
-            }
-          }
-        }
+      if (lines[i+1]) {
+        team2 = clean(lines[i+1].join(' '));
       }
-      return results;
-    }
 
-    analyzeBtn.onclick = async () => {
-      analyzeBtn.disabled = true;
-      statusDiv.innerHTML = '<span class="spinner"></span> OCR en cours...';
-      resultCard.style.display = 'none';
-      debugArea.style.display = 'none';
-
-      try {
-        const [resultsRes, oddsRes] = await Promise.all([
-          Tesseract.recognize(resultsFile, 'eng', { tessedit_pageseg_mode: Tesseract.PSM.SINGLE_BLOCK }),
-          Tesseract.recognize(oddsFile, 'eng', { tessedit_pageseg_mode: Tesseract.PSM.SINGLE_BLOCK })
-        ]);
-
-        const resultsText = resultsRes.data.text;
-        const oddsText = oddsRes.data.text;
-        resultsDebug.textContent = resultsText;
-        oddsDebug.textContent = oddsText;
-        debugArea.style.display = 'block';
-
-        const results = extractResults(resultsText);
-        const matches = extractOdds(oddsText);
-
-        // Fusion
-        matches.forEach(m => {
-          const key1 = normalize(m.team1);
-          const key2 = normalize(m.team2);
-          m.result = results[key1] || results[key2] || '–';
-          const h = parseFloat(m.homeOdd);
-          const d = parseFloat(m.drawOdd);
-          const a = parseFloat(m.awayOdd);
-          if (!isNaN(h) && !isNaN(d) && !isNaN(a)) {
-            m.sum12 = (h + a).toFixed(2);
-            m.sum1N2 = (h + d + a).toFixed(2);
-            m.mean = ((h + d + a) / 3).toFixed(2);
-          } else if (!isNaN(h) && !isNaN(a) && isNaN(d)) {
-            m.sum12 = (h + a).toFixed(2);
-            m.sum1N2 = '–';
-            m.mean = '–';
-          } else {
-            m.sum12 = '–'; m.sum1N2 = '–'; m.mean = '–';
-          }
+      if (team1 && team2) {
+        matches.push({
+          team1,
+          team2,
+          homeOdd: odds[0] || null,
+          drawOdd: odds[1] || null,
+          awayOdd: odds[2] || null
         });
-
-        // Rendu
-        tbody.innerHTML = '';
-        matches.forEach(m => {
-          const tr = document.createElement('tr');
-          tr.innerHTML = `<td>${m.team1}</td><td>${m.team2}</td>
-            <td>${m.homeOdd||'–'}</td><td>${m.drawOdd||'–'}</td><td>${m.awayOdd||'–'}</td>
-            <td>${m.sum12}</td><td>${m.sum1N2}</td><td>${m.mean}</td><td>${m.result}</td>`;
-          tbody.appendChild(tr);
-        });
-        resultCard.style.display = 'block';
-        statusDiv.innerHTML = '';
-        window._matches = matches;
-      } catch (err) {
-        statusDiv.innerHTML = `<div class="error">❌ ${err.message}</div>`;
-      } finally {
-        analyzeBtn.disabled = false;
       }
-    };
+    }
+  }
 
-    // Boutons Copier/CSV
-    document.getElementById('copyBtn').onclick = () => {
-      if (!window._matches) return;
-      const lines = window._matches.map(m =>
-        `${m.team1}\t${m.team2}\t${m.homeOdd||'-'}\t${m.drawOdd||'-'}\t${m.awayOdd||'-'}\t${m.sum12||'-'}\t${m.sum1N2||'-'}\t${m.mean||'-'}\t${m.result||'-'}`
-      ).join('\n');
-      navigator.clipboard.writeText(lines).then(() => alert('Tableau copié !'));
-    };
-    document.getElementById('csvBtn').onclick = () => {
-      if (!window._matches) return;
-      let csv = 'Équipe 1,Équipe 2,1,N,2,Somme 1+2,Somme 1+N+2,Moyenne,Résultat\n';
-      window._matches.forEach(m => {
-        csv += `"${m.team1}","${m.team2}",${m.homeOdd||''},${m.drawOdd||''},${m.awayOdd||''},${m.sum12||''},${m.sum1N2||''},${m.mean||''},"${m.result||''}"\n`;
-      });
-      const blob = new Blob([csv], { type: 'text/csv' });
-      const a = document.createElement('a');
-      a.href = URL.createObjectURL(blob);
-      a.download = 'matchs_fusion.csv';
-      a.click();
-    };
-  </script>
-</body>
-</html>
+  return matches;
+}
+
+function extractResults(lines) {
+  const results = {};
+
+  for (const words of lines) {
+    const line = words.join(' ');
+
+    const match = line.match(/(.+?)\s*(\d+)[-:](\d+)\s*(.+)/);
+
+    if (match) {
+      const team1 = clean(match[1]);
+      const team2 = clean(match[4]);
+      const score = `${match[2]}-${match[3]}`;
+
+      results[normalize(team1)] = score;
+      results[normalize(team2)] = score;
+    }
+  }
+
+  return results;
+}
+
+function findResult(team, results) {
+  const key = normalize(team);
+
+  if (results[key]) return results[key];
+
+  for (const k in results) {
+    if (k.includes(key) || key.includes(k)) {
+      return results[k];
+    }
+  }
+
+  return null;
+}
+
+analyzeBtn.onclick = async () => {
+  analyzeBtn.disabled = true;
+  statusDiv.innerText = "🔍 Analyse intelligente en cours...";
+
+  try {
+    const [oddsWords, resultsWords] = await Promise.all([
+      ocrWithBoxes(oddsFile),
+      ocrWithBoxes(resultsFile)
+    ]);
+
+    const oddsLines = groupLines(oddsWords);
+    const resultsLines = groupLines(resultsWords);
+
+    const matches = extractMatchesFromOdds(oddsLines);
+    const results = extractResults(resultsLines);
+
+    matches.forEach(m => {
+      m.result =
+        findResult(m.team1, results) ||
+        findResult(m.team2, results) ||
+        '-';
+
+      const h = parseFloat(m.homeOdd);
+      const d = parseFloat(m.drawOdd);
+      const a = parseFloat(m.awayOdd);
+
+      m.sum12 = (!isNaN(h) && !isNaN(a)) ? (h+a).toFixed(2) : '-';
+      m.sumAll = (!isNaN(h) && !isNaN(d) && !isNaN(a)) ? (h+d+a).toFixed(2) : '-';
+      m.mean = (!isNaN(h) && !isNaN(d) && !isNaN(a)) ? ((h+d+a)/3).toFixed(2) : '-';
+    });
+
+    render(matches);
+
+  } catch (e) {
+    statusDiv.innerText = "❌ Erreur OCR";
+  }
+
+  analyzeBtn.disabled = false;
+};
+
+function render(matches) {
+  tbody.innerHTML = '';
+
+  matches.forEach(m => {
+    const tr = document.createElement('tr');
+
+    tr.innerHTML = `
+      <td>${m.team1}</td>
+      <td>${m.team2}</td>
+      <td>${m.homeOdd||'-'}</td>
+      <td>${m.drawOdd||'-'}</td>
+      <td>${m.awayOdd||'-'}</td>
+      <td>${m.sum12}</td>
+      <td>${m.sumAll}</td>
+      <td>${m.mean}</td>
+      <td>${m.result}</td>
+    `;
+
+    tbody.appendChild(tr);
+  });
+
+  resultCard.style.display = 'block';
+}
+    </script>
