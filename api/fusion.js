@@ -5,7 +5,7 @@ const busboy = require('busboy');
 
 const OCR_API_KEY = process.env.OCR_SPACE_API_KEY;
 
-// Fonction pour parser la requête multipart et retourner deux buffers (oddsImage, resultsImage)
+// Parser multipart avec busboy
 function parseMultipart(req) {
   return new Promise((resolve, reject) => {
     const files = {};
@@ -29,9 +29,8 @@ function parseMultipart(req) {
   });
 }
 
-// Prétraitement d'image (contraste + binarisation)
+// Prétraitement
 async function preprocessImage(buffer) {
-  // Vérifier que le buffer est bien une image (sharp le fera, mais on peut logguer)
   return await sharp(buffer)
     .resize(1200)
     .grayscale()
@@ -42,7 +41,7 @@ async function preprocessImage(buffer) {
     .toBuffer();
 }
 
-// Envoi à OCR.space
+// OCR
 async function ocrSpace(buffer) {
   const form = new FormData();
   form.append('apikey', OCR_API_KEY);
@@ -64,7 +63,7 @@ async function ocrSpace(buffer) {
   return data.ParsedResults[0].ParsedText;
 }
 
-// Nettoyage des noms d'équipes
+// Nettoyage des noms
 const STOP_WORDS = new Set(['se', 'connecter', 'inscrire', 's\'inscrire', 'menu', 'virtuel', 'mes', 'paris']);
 function cleanName(str) {
   let name = str.replace(/[^A-Za-z '-]/g, ' ').trim();
@@ -146,17 +145,16 @@ function extractResults(text) {
   return results;
 }
 
-// Handler principal Vercel
+// Handler principal
 module.exports = async (req, res) => {
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Méthode non autorisée' });
   }
 
   try {
-    // Parser les fichiers avec busboy
     const { oddsBuffer, resultsBuffer } = await parseMultipart(req);
 
-    // Prétraiter les deux images
+    // Prétraiter
     const [oddsProcessed, resultsProcessed] = await Promise.all([
       preprocessImage(oddsBuffer),
       preprocessImage(resultsBuffer)
@@ -168,7 +166,7 @@ module.exports = async (req, res) => {
       ocrSpace(resultsProcessed)
     ]);
 
-    // Extraire les données
+    // Extraire
     const matches = extractOdds(oddsText);
     const results = extractResults(resultsText);
 
@@ -193,7 +191,16 @@ module.exports = async (req, res) => {
       }
     });
 
-    res.status(200).json({ matches });
+    // Réponse avec debug
+    res.status(200).json({
+      matches,
+      debug: {
+        oddsText,
+        resultsText,
+        oddsMatchCount: matches.length,
+        resultsCount: Object.keys(results).length
+      }
+    });
   } catch (error) {
     console.error(error);
     res.status(500).json({ error: error.message || 'Erreur serveur' });
