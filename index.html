@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Test extraction cotes</title>
+  <title>Extraction des cotes – Bet261</title>
   <style>
     body { font-family: sans-serif; max-width: 600px; margin: 2rem auto; }
     .upload-area { border: 2px dashed #aaa; padding: 2rem; text-align: center; cursor: pointer; }
@@ -13,7 +13,7 @@
   </style>
 </head>
 <body>
-  <h2>Étape 1 : extraire les cotes de la première image</h2>
+  <h2>Extraction des cotes (image 1)</h2>
   <div class="upload-area" id="uploadArea">
     <p>📷 Cliquez ou déposez la capture des cotes</p>
     <input type="file" id="fileInput" accept="image/*" hidden>
@@ -64,20 +64,33 @@
       resultTable.style.display = 'none';
     }
 
-    // Nettoyage des noms d'équipes (on garde les mots >= 2 lettres)
+    // ---------- STOP WORDS ----------
+    const STOP_WORDS = new Set([
+      'se', 'connecter', 'inscrire', 's\'inscrire',
+      'menu', 'virtuel', 'mes', 'paris',
+      'bonus', 'jouer', 'comporte', 'risques',
+      'restons', 'vigilants', 'bet', '261',
+      '1x2', 'mi-tps', 'double', 'chance', 'dc'
+    ]);
+
+    // ---------- NETTOYAGE RENFORCE ----------
     function cleanName(str) {
-      const cleaned = str.replace(/[^A-Za-z À-ÿ'-]/g, ' ').trim();
-      const tokens = cleaned.split(/\s+/).filter(w => w.length >= 2);
+      // Supprime tout sauf les lettres (avec accents), espaces, apostrophes, tirets
+      let cleaned = str.replace(/[^A-Za-z À-ÿ'-]/g, ' ').trim();
+      // Sépare en mots
+      let tokens = cleaned.split(/\s+/).filter(w => w.length >= 2 && !STOP_WORDS.has(w.toLowerCase()));
       if (tokens.length === 0) return '';
-      return tokens.map(t => t.charAt(0).toUpperCase() + t.slice(1).toLowerCase()).join(' ');
+      // Ne garder que les tokens commençant par une majuscule (comme les vrais noms d'équipe)
+      tokens = tokens.filter(t => /^[A-Z]/.test(t));
+      return tokens.join(' ');
     }
 
-    // Extraction des cotes depuis le texte OCR
+    // ---------- EXTRACTION DES COTES ----------
     function extractOdds(text) {
       const lines = text.split('\n').map(l => l.trim()).filter(l => l.length > 0);
       const matches = [];
-      // Repérer toutes les lignes contenant au moins un nombre décimal
       const numberLines = [];
+      // Repérer toutes les lignes qui contiennent un nombre décimal
       lines.forEach((line, idx) => {
         const nums = line.match(/\d+[.,]\d+/g);
         if (nums) numberLines.push({ idx, nums: nums.map(n => n.replace(',', '.')) });
@@ -100,42 +113,41 @@
 
         const firstIdx = group[0].idx;
         const teamLines = [];
-        // Chercher deux lignes non numériques juste au-dessus du premier nombre
+        // Chercher deux équipes valides au‑dessus du premier nombre
         for (let j = firstIdx - 1; j >= 0 && teamLines.length < 2; j--) {
-          const line = lines[j];
-          if (/^\d+[.,]\d+$/.test(line) || /^\d+'/.test(line)) continue;
-          const name = cleanName(line);
-          if (name) teamLines.unshift(name); // insère au début pour respecter l'ordre
+          const raw = lines[j];
+          // Ignorer les lignes qui sont elles‑mêmes des nombres ou des minutes
+          if (/^\d+[.,]\d+$/.test(raw) || /^\d+'/.test(raw)) continue;
+          const name = cleanName(raw);
+          if (name) teamLines.unshift(name);
         }
-        // Si on n'en a qu'une, chercher en dessous
+        // Si on n'en a pas deux, chercher en dessous
         if (teamLines.length < 2) {
           for (let j = firstIdx + 1; j < lines.length && teamLines.length < 2; j++) {
-            const line = lines[j];
-            if (/^\d+[.,]\d+$/.test(line) || /^\d+'/.test(line)) continue;
-            const name = cleanName(line);
+            const raw = lines[j];
+            if (/^\d+[.,]\d+$/.test(raw) || /^\d+'/.test(raw)) continue;
+            const name = cleanName(raw);
             if (name) {
-              teamLines.push(name); // ajoute à la fin
+              teamLines.push(name);
               if (teamLines.length === 2) break;
             }
           }
         }
 
         if (teamLines.length >= 2) {
-          const homeOdd = odds[0];
-          const drawOdd = odds.length === 3 ? odds[1] : null;
-          const awayOdd = odds.length === 3 ? odds[2] : odds[1];
           matches.push({
             team1: teamLines[0],
             team2: teamLines[1],
-            homeOdd,
-            drawOdd,
-            awayOdd
+            homeOdd: odds[0] || null,
+            drawOdd: odds.length === 3 ? odds[1] : null,
+            awayOdd: odds.length === 3 ? odds[2] : odds[1]
           });
         }
       }
       return matches;
     }
 
+    // ---------- ANALYSE ----------
     analyzeBtn.addEventListener('click', async () => {
       if (!selectedFile) return;
       analyzeBtn.disabled = true;
@@ -144,23 +156,19 @@
       resultTable.style.display = 'none';
 
       try {
-        // 1. Prétraitement simple (conversion noir & blanc)
+        // Prétraitement (noir & blanc)
         const preprocessed = await preprocessImage(selectedFile);
-
-        // 2. Lancer Tesseract sur l'image prétraitée
+        // Lancer Tesseract sur l'image prétraitée
         const { data } = await Tesseract.recognize(preprocessed, 'eng', {
           tessedit_pageseg_mode: Tesseract.PSM.SINGLE_BLOCK
         });
         const ocrText = data.text;
 
-        // Affichage debug
+        // Afficher le texte brut pour debug
         ocrTextDiv.textContent = ocrText;
         debugArea.style.display = 'block';
 
-        // 3. Extraire les cotes
         const matches = extractOdds(ocrText);
-
-        // 4. Remplir le tableau
         tbody.innerHTML = '';
         if (matches.length > 0) {
           matches.forEach(m => {
@@ -172,7 +180,7 @@
           resultTable.style.display = 'table';
           statusDiv.innerHTML = '';
         } else {
-          statusDiv.innerHTML = '<span style="color:red;">Aucune cote trouvée. Regardez le texte brut ci-dessus.</span>';
+          statusDiv.innerHTML = '<span style="color:red;">Aucune cote trouvée.</span>';
         }
       } catch (err) {
         statusDiv.innerHTML = `<span style="color:red;">❌ Erreur : ${err.message}</span>`;
@@ -181,7 +189,7 @@
       }
     });
 
-    // Fonction de prétraitement (noir & blanc strict)
+    // ---------- PRETRAITEMENT ----------
     function preprocessImage(file) {
       return new Promise((resolve) => {
         const img = new Image();
