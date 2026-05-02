@@ -3,102 +3,147 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Extraction des cotes – Bet261</title>
+  <title>Bet261 – Fusion avec OCR.space</title>
   <style>
-    body { font-family: sans-serif; max-width: 700px; margin: 2rem auto; }
-    .upload-area { border: 2px dashed #aaa; padding: 2rem; text-align: center; cursor: pointer; }
-    table { width: 100%; border-collapse: collapse; margin-top: 1rem; }
-    th, td { border: 1px solid #ddd; padding: 0.4rem; text-align: left; }
-    .debug { background: #f4f4f4; padding: 1rem; white-space: pre-wrap; font-family: monospace; }
+    :root {
+      --primary: #1a73e8;
+      --bg: #f8f9fa;
+      --card-bg: #ffffff;
+      --text: #202124;
+      --border: #dadce0;
+    }
+    body {
+      font-family: 'Segoe UI', Roboto, sans-serif;
+      background: var(--bg);
+      margin: 0; padding: 2rem 1rem;
+      display: flex; justify-content: center;
+      color: var(--text);
+    }
+    .container { max-width: 900px; width: 100%; }
+    .header { text-align: center; margin-bottom: 2rem; }
+    .header h1 { font-weight: 400; font-size: 2rem; margin: 0 0 0.5rem; }
+    .header p { color: #5f6368; }
+    .upload-row { display: flex; gap: 1rem; flex-wrap: wrap; }
+    .upload-card {
+      flex: 1 1 250px; background: var(--card-bg);
+      border-radius: 12px; padding: 1.5rem; box-shadow: 0 1px 4px rgba(0,0,0,0.1);
+    }
+    .upload-area {
+      border: 2px dashed var(--border); border-radius: 8px;
+      padding: 1.5rem; text-align: center; cursor: pointer;
+    }
+    .upload-area:hover { border-color: var(--primary); background: #f1f5ff; }
+    .upload-area input { display: none; }
+    .btn {
+      display: inline-block; padding: 0.6rem 1.5rem;
+      background: var(--primary); color: white; border: none;
+      border-radius: 6px; font-size: 1rem; cursor: pointer;
+      margin-top: 1rem; transition: 0.2s;
+    }
+    .btn:disabled { opacity: 0.6; cursor: not-allowed; }
+    .btn-outline {
+      background: white; color: var(--primary); border: 1px solid var(--primary);
+    }
+    .result-card {
+      background: var(--card-bg); border-radius: 12px;
+      padding: 1.5rem; margin-top: 2rem; box-shadow: 0 1px 4px rgba(0,0,0,0.1);
+      display: none;
+    }
+    table { width: 100%; border-collapse: collapse; font-size: 0.9rem; }
+    th, td { text-align: left; padding: 0.5rem 0.3rem; border-bottom: 1px solid var(--border); }
+    th { font-weight: 500; color: #5f6368; }
+    .actions { display: flex; gap: 0.5rem; margin-top: 1rem; justify-content: flex-end; }
   </style>
 </head>
 <body>
-  <h2>Extraction des cotes (image 1)</h2>
-  <div class="upload-area" id="uploadArea">
-    <p>📷 Cliquez ou déposez la capture des cotes</p>
-    <input type="file" id="fileInput" accept="image/*" hidden>
+  <div class="container">
+    <div class="header">
+      <h1>⚽ Bet261 – Fusion automatique</h1>
+      <p>1. Capture des cotes (avant match)<br>2. Capture des résultats (après match)</p>
+    </div>
+    <div class="upload-row">
+      <div class="upload-card">
+        <h3>1. Cotes</h3>
+        <div class="upload-area" id="oddsArea">
+          <p>📷 Image cotes</p>
+          <input type="file" id="oddsInput" accept="image/*">
+        </div>
+      </div>
+      <div class="upload-card">
+        <h3>2. Résultats</h3>
+        <div class="upload-area" id="resultsArea">
+          <p>📷 Image résultats</p>
+          <input type="file" id="resultsInput" accept="image/*">
+        </div>
+      </div>
+    </div>
+    <button class="btn" id="analyzeBtn" disabled>Analyser</button>
+    <div id="status"></div>
+    <div class="result-card" id="resultCard">
+      <h2>Tableau fusionné</h2>
+      <div style="overflow-x:auto;">
+        <table id="matchTable">
+          <thead><tr><th>Équipe 1</th><th>Équipe 2</th><th>1</th><th>N</th><th>2</th><th>S 1+2</th><th>S 1+N+2</th><th>Moy</th><th>Résultat</th></tr></thead>
+          <tbody></tbody>
+        </table>
+      </div>
+      <div class="actions">
+        <button class="btn btn-outline" id="copyBtn">📋 Copier</button>
+        <button class="btn btn-outline" id="csvBtn">📥 CSV</button>
+      </div>
+    </div>
   </div>
-  <button id="analyzeBtn" disabled>Analyser</button>
-  <div id="status"></div>
 
-  <div id="debugArea" style="display:none;">
-    <h3>OCR brut</h3>
-    <div id="ocrText" class="debug"></div>
-  </div>
-
-  <table id="resultTable" style="display:none;">
-    <thead><tr><th>Équipe 1</th><th>Équipe 2</th><th>1</th><th>N</th><th>2</th></tr></thead>
-    <tbody></tbody>
-  </table>
-
-  <script src="https://unpkg.com/tesseract.js@v5.0.0/dist/tesseract.min.js"></script>
   <script>
-    const uploadArea = document.getElementById('uploadArea');
-    const fileInput = document.getElementById('fileInput');
+    // DOM
+    const oddsInput = document.getElementById('oddsInput');
+    const resultsInput = document.getElementById('resultsInput');
     const analyzeBtn = document.getElementById('analyzeBtn');
+    const resultCard = document.getElementById('resultCard');
+    const tbody = document.querySelector('#matchTable tbody');
     const statusDiv = document.getElementById('status');
-    const debugArea = document.getElementById('debugArea');
-    const ocrTextDiv = document.getElementById('ocrText');
-    const resultTable = document.getElementById('resultTable');
-    const tbody = resultTable.querySelector('tbody');
-    let selectedFile = null;
+    const oddsArea = document.getElementById('oddsArea');
+    const resultsArea = document.getElementById('resultsArea');
+    let oddsFile = null, resultsFile = null;
 
-    uploadArea.addEventListener('click', () => fileInput.click());
-    uploadArea.addEventListener('dragover', e => { e.preventDefault(); uploadArea.style.borderColor = '#1a73e8'; });
-    uploadArea.addEventListener('dragleave', () => uploadArea.style.borderColor = '#aaa');
-    uploadArea.addEventListener('drop', e => {
-      e.preventDefault();
-      uploadArea.style.borderColor = '#aaa';
-      if (e.dataTransfer.files.length) {
-        fileInput.files = e.dataTransfer.files;
-        handleFile(fileInput.files[0]);
-      }
-    });
-    fileInput.addEventListener('change', () => handleFile(fileInput.files[0]));
+    oddsArea.onclick = () => oddsInput.click();
+    resultsArea.onclick = () => resultsInput.click();
+    oddsInput.onchange = () => { oddsFile = oddsInput.files[0]; check(); };
+    resultsInput.onchange = () => { resultsFile = resultsInput.files[0]; check(); };
+    function check() { analyzeBtn.disabled = !(oddsFile && resultsFile); }
 
-    function handleFile(file) {
-      selectedFile = file;
-      analyzeBtn.disabled = false;
-      statusDiv.innerHTML = '';
-      debugArea.style.display = 'none';
-      resultTable.style.display = 'none';
+    // Envoi d'une image à l'API OCR
+    async function uploadAndOCR(file) {
+      const form = new FormData();
+      form.append('image', file);
+      const res = await fetch('/api/ocr', { method: 'POST', body: form });
+      const data = await res.json();
+      if (data.error) throw new Error(data.error);
+      return data.text;
     }
 
-    // STOP WORDS (complétés avec les parasites observés)
-    const STOP_WORDS = new Set([
-      'se','connecter','inscrire','s\'inscrire','menu','virtuel','mes','paris',
-      'bonus','jouer','comporte','risques','restons','vigilants','bet','261',
-      '1x2','mi-tps','double','chance','dc','p','i','xv','yv','size'
-    ]);
-
-    // Nettoyage d'un nom d'équipe
+    // Parsing des cotes (identique à avant, testé)
+    const STOP_WORDS = new Set(['se','connecter','inscrire','s\'inscrire','menu','virtuel','mes','paris','bonus','jouer','comporte','risques','restons','vigilants','bet','261','1x2','mi-tps','double','chance','dc','p','i','xv','yv','size']);
     function cleanName(str) {
-      let cleaned = str.replace(/[^A-Za-z À-ÿ'.]/g, ' ').trim();
+      let cleaned = str.replace(/[^A-Za-z À-ÿ'-]/g, ' ').trim();
       let tokens = cleaned.split(/\s+/).filter(w => w.length >= 2 && !STOP_WORDS.has(w.toLowerCase()));
-      if (tokens.length === 0) return '';
-      // Garder seulement les tokens commençant par une majuscule (vrais noms)
       tokens = tokens.filter(t => /^[A-Z]/.test(t));
       return tokens.join(' ');
     }
 
-    // Vérifier si une ligne est parasite (coordonnées, etc.)
     function isParasiteLine(line) {
-      return /^(P:|I:|Xv:|Yv:|Size:|size:|Jouer|restons|©|\(|\)|\[|\]|2s bet261)/i.test(line) ||
-             /^\d+[.,]\d+\s*$/.test(line.trim()) === false && /^[^A-Za-z]*$/.test(line.trim());
+      return /^(P:|I:|Xv:|Yv:|Size:|size:|Jouer|restons|©|\(|\)|\[|\]|2s bet261|o—|\. )/.test(line);
     }
 
-    // Extraction des cotes
     function extractOdds(text) {
       const lines = text.split('\n').map(l => l.trim()).filter(l => l.length > 0 && !isParasiteLine(l));
       const matches = [];
-      // Repérer toutes les lignes contenant des nombres décimaux
       const numberLines = [];
       lines.forEach((line, idx) => {
         const nums = line.match(/\d+[.,]\d+/g);
-        if (nums) numberLines.push({ idx, nums: nums.map(n => n.replace(',', '.')) });
+        if (nums && nums.length >= 2) numberLines.push({ idx, nums: nums.map(n => n.replace(',', '.')) });
       });
 
-      // Grouper les lignes de nombres proches (écart ≤ 2 lignes)
       const groups = [];
       for (const item of numberLines) {
         if (groups.length === 0 || item.idx - groups[groups.length-1].at(-1).idx > 2) {
@@ -115,14 +160,12 @@
 
         const firstIdx = group[0].idx;
         const teamLines = [];
-        // Chercher deux équipes valides au-dessus du premier nombre
         for (let j = firstIdx - 1; j >= 0 && teamLines.length < 2; j--) {
           const raw = lines[j];
           if (isParasiteLine(raw) || /^\d+[.,]\d+$/.test(raw) || /^\d+'/.test(raw)) continue;
           const name = cleanName(raw);
           if (name) teamLines.unshift(name);
         }
-        // Si seulement une trouvée, chercher en dessous
         if (teamLines.length < 2) {
           for (let j = firstIdx + 1; j < lines.length && teamLines.length < 2; j++) {
             const raw = lines[j];
@@ -148,68 +191,95 @@
       return matches;
     }
 
-    // Analyse
-    analyzeBtn.addEventListener('click', async () => {
-      if (!selectedFile) return;
+    function extractResults(text) {
+      const lines = text.split('\n').map(l => l.trim()).filter(l => l.length > 0);
+      const results = {};
+      const pattern1 = /([A-Za-z .'-]+?)\s*[\[\(]\s*(\d+)\s*[-:]\s*(\d+)\s*[\]\)]\s+([A-Za-z .'-]+)/;
+      const pattern2 = /([A-Za-z .'-]+?)\s+(\d+)\s*[-:]\s*(\d+)\s+([A-Za-z .'-]+)/;
+      for (const line of lines) {
+        let m = line.match(pattern1) || line.match(pattern2);
+        if (m) {
+          const team1 = cleanName(m[1]);
+          const score = `${m[2]}-${m[3]}`;
+          const team2 = cleanName(m[4]);
+          if (team1 && team2) {
+            results[team1.toLowerCase()] = score;
+            results[team2.toLowerCase()] = score;
+          }
+        }
+      }
+      return results;
+    }
+
+    // Action principale
+    analyzeBtn.onclick = async () => {
       analyzeBtn.disabled = true;
-      statusDiv.innerHTML = '<span style="color:#1a73e8;">OCR en cours...</span>';
-      debugArea.style.display = 'none';
-      resultTable.style.display = 'none';
+      statusDiv.innerHTML = 'OCR en cours...';
+      resultCard.style.display = 'none';
 
       try {
-        const preprocessed = await preprocessImage(selectedFile);
-        const { data } = await Tesseract.recognize(preprocessed, 'eng', {
-          tessedit_pageseg_mode: Tesseract.PSM.SINGLE_BLOCK
-        });
-        const ocrText = data.text;
-        ocrTextDiv.textContent = ocrText;
-        debugArea.style.display = 'block';
+        const [oddsText, resultsText] = await Promise.all([
+          uploadAndOCR(oddsFile),
+          uploadAndOCR(resultsFile)
+        ]);
 
-        const matches = extractOdds(ocrText);
+        const matches = extractOdds(oddsText);
+        const results = extractResults(resultsText);
+
+        matches.forEach(m => {
+          const key1 = m.team1.toLowerCase();
+          const key2 = m.team2.toLowerCase();
+          m.result = results[key1] || results[key2] || '–';
+          const h = parseFloat(m.homeOdd);
+          const d = parseFloat(m.drawOdd);
+          const a = parseFloat(m.awayOdd);
+          if (!isNaN(h) && !isNaN(a)) {
+            m.sum12 = (h + a).toFixed(2);
+            m.sum1N2 = !isNaN(d) ? (h + d + a).toFixed(2) : '–';
+            m.mean = !isNaN(d) ? ((h + d + a) / 3).toFixed(2) : '–';
+          } else {
+            m.sum12 = m.sum1N2 = m.mean = '–';
+          }
+        });
+
         tbody.innerHTML = '';
-        if (matches.length > 0) {
-          matches.forEach(m => {
-            const tr = document.createElement('tr');
-            tr.innerHTML = `<td>${m.team1}</td><td>${m.team2}</td>
-              <td>${m.homeOdd || '–'}</td><td>${m.drawOdd || '–'}</td><td>${m.awayOdd || '–'}</td>`;
-            tbody.appendChild(tr);
-          });
-          resultTable.style.display = 'table';
-          statusDiv.innerHTML = '';
-        } else {
-          statusDiv.innerHTML = '<span style="color:red;">Aucune cote trouvée.</span>';
-        }
+        matches.forEach(m => {
+          const tr = document.createElement('tr');
+          tr.innerHTML = `<td>${m.team1}</td><td>${m.team2}</td>
+            <td>${m.homeOdd || '–'}</td><td>${m.drawOdd || '–'}</td><td>${m.awayOdd || '–'}</td>
+            <td>${m.sum12}</td><td>${m.sum1N2}</td><td>${m.mean}</td><td>${m.result}</td>`;
+          tbody.appendChild(tr);
+        });
+        resultCard.style.display = 'block';
+        statusDiv.innerHTML = '';
+        window._matches = matches;
       } catch (err) {
-        statusDiv.innerHTML = `<span style="color:red;">❌ Erreur : ${err.message}</span>`;
+        statusDiv.innerHTML = `❌ Erreur : ${err.message}`;
       } finally {
         analyzeBtn.disabled = false;
       }
-    });
+    };
 
-    function preprocessImage(file) {
-      return new Promise((resolve) => {
-        const img = new Image();
-        img.onload = () => {
-          const canvas = document.createElement('canvas');
-          const ctx = canvas.getContext('2d');
-          canvas.width = img.width;
-          canvas.height = img.height;
-          ctx.drawImage(img, 0, 0);
-          const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-          const data = imageData.data;
-          for (let i = 0; i < data.length; i += 4) {
-            const gray = 0.299 * data[i] + 0.587 * data[i+1] + 0.114 * data[i+2];
-            const val = gray > 128 ? 255 : 0;
-            data[i] = val;
-            data[i+1] = val;
-            data[i+2] = val;
-          }
-          ctx.putImageData(imageData, 0, 0);
-          resolve(canvas.toDataURL('image/png'));
-        };
-        img.src = URL.createObjectURL(file);
+    // Boutons Copier / CSV
+    document.getElementById('copyBtn').onclick = () => {
+      if (!window._matches) return;
+      const lines = window._matches.map(m =>
+        `${m.team1}\t${m.team2}\t${m.homeOdd||'-'}\t${m.drawOdd||'-'}\t${m.awayOdd||'-'}\t${m.sum12}\t${m.sum1N2}\t${m.mean}\t${m.result}`
+      ).join('\n');
+      navigator.clipboard.writeText(lines).then(() => alert('Copié !'));
+    };
+    document.getElementById('csvBtn').onclick = () => {
+      if (!window._matches) return;
+      let csv = 'Équipe 1,Équipe 2,1,N,2,Somme 1+2,Somme 1+N+2,Moyenne,Résultat\n';
+      window._matches.forEach(m => {
+        csv += `"${m.team1}","${m.team2}",${m.homeOdd||''},${m.drawOdd||''},${m.awayOdd||''},${m.sum12},${m.sum1N2},${m.mean},"${m.result}"\n`;
       });
-    }
+      const blob = new Blob([csv], { type: 'text/csv' });
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = 'matchs_fusion.csv';
+      a.click();
+    };
   </script>
 </body>
 </html>
