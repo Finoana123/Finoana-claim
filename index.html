@@ -3,107 +3,216 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Bet261 – OCR Debug</title>
+  <title>Bet261 – Fusion OCR.space</title>
   <style>
-    :root {
-      --primary: #1a73e8;
-      --bg: #f8f9fa;
-      --card-bg: #ffffff;
-      --text: #202124;
-      --border: #dadce0;
-    }
-    body {
-      font-family: 'Segoe UI', Roboto, sans-serif;
-      background: var(--bg);
-      margin: 0; padding: 2rem 1rem;
-      display: flex; justify-content: center;
-      color: var(--text);
-    }
-    .container { max-width: 900px; width: 100%; }
-    .header { text-align: center; margin-bottom: 2rem; }
-    .btn {
-      display: inline-block; padding: 0.6rem 1.5rem;
-      background: var(--primary); color: white; border: none;
-      border-radius: 6px; font-size: 1rem; cursor: pointer;
-    }
-    .btn:disabled { opacity: 0.6; cursor: not-allowed; }
-    .debug { background: #f4f4f4; padding: 1rem; white-space: pre-wrap; font-family: monospace; margin: 0.5rem 0; }
-    img.preview { max-width: 200px; border: 1px solid #ccc; }
-    table { width: 100%; border-collapse: collapse; }
-    th, td { border: 1px solid #ddd; padding: 0.4rem; }
+    body { font-family: sans-serif; max-width: 800px; margin: 2rem auto; padding: 0 1rem; }
+    .upload-area { border: 2px dashed #aaa; padding: 2rem; text-align: center; cursor: pointer; margin-bottom: 1rem; }
+    button { padding: 0.8rem 1.5rem; background: #1a73e8; color: white; border: none; border-radius: 6px; cursor: pointer; }
+    button:disabled { opacity: 0.6; }
+    table { width: 100%; border-collapse: collapse; margin-top: 1rem; display: none; }
+    th, td { border: 1px solid #ddd; padding: 0.4rem; text-align: left; }
+    .debug { background: #f4f4f4; padding: 1rem; white-space: pre-wrap; font-family: monospace; margin-top: 1rem; }
+    .actions { margin-top: 1rem; display: flex; gap: 0.5rem; }
   </style>
 </head>
 <body>
-  <div class="container">
-    <h2>OCR Debug – Étape 1 : image prétraitée</h2>
-    <input type="file" id="fileInput" accept="image/*">
-    <button id="debugBtn" class="btn">Tester le prétraitement</button>
-    <div id="previewContainer"></div>
-    <div id="ocrResult" class="debug"></div>
+  <h1>⚽ Bet261 – Fusion OCR.space</h1>
+  <p>1. Chargez la capture des <strong>cotes</strong></p>
+  <div class="upload-area" id="uploadCotes">
+    <p>📷 Cliquez pour choisir l'image</p>
+    <input type="file" id="cotesInput" accept="image/*" hidden>
+  </div>
+  <p>2. Chargez la capture des <strong>résultats</strong></p>
+  <div class="upload-area" id="uploadResultats">
+    <p>📷 Cliquez pour choisir l'image</p>
+    <input type="file" id="resultatsInput" accept="image/*" hidden>
+  </div>
+  <p>3. <strong>Clé API OCR.space</strong> (gratuite sur <a href="https://ocr.space/ocrapi/freekey" target="_blank">ocr.space</a>)</p>
+  <input type="text" id="apiKey" placeholder="Votre clé API" style="width:100%; padding:0.5rem; margin-bottom:1rem;" />
+  <button id="analyzeBtn">Analyser</button>
+  <div id="debugArea" style="display:none;">
+    <h3>Texte brut cotes</h3>
+    <div id="cotesDebug" class="debug"></div>
+    <h3>Texte brut résultats</h3>
+    <div id="resultatsDebug" class="debug"></div>
+  </div>
+  <table id="resultTable">
+    <thead><tr><th>Équipe 1</th><th>Équipe 2</th><th>1</th><th>N</th><th>2</th><th>S 1+2</th><th>S 1+N+2</th><th>Moy</th><th>Résultat</th></tr></thead>
+    <tbody></tbody>
+  </table>
+  <div class="actions" id="actions" style="display:none;">
+    <button id="copyBtn">📋 Copier</button>
+    <button id="csvBtn">📥 CSV</button>
   </div>
 
   <script>
-    const fileInput = document.getElementById('fileInput');
-    const debugBtn = document.getElementById('debugBtn');
-    const previewContainer = document.getElementById('previewContainer');
-    const ocrResult = document.getElementById('ocrResult');
+    const uploadCotes = document.getElementById('uploadCotes');
+    const uploadResultats = document.getElementById('uploadResultats');
+    const cotesInput = document.getElementById('cotesInput');
+    const resultatsInput = document.getElementById('resultatsInput');
+    const apiKeyInput = document.getElementById('apiKey');
+    const analyzeBtn = document.getElementById('analyzeBtn');
+    const debugArea = document.getElementById('debugArea');
+    const cotesDebug = document.getElementById('cotesDebug');
+    const resultatsDebug = document.getElementById('resultatsDebug');
+    const resultTable = document.getElementById('resultTable');
+    const tbody = resultTable.querySelector('tbody');
+    const actionsDiv = document.getElementById('actions');
+    let cotesFile = null, resultatsFile = null;
 
-    debugBtn.addEventListener('click', async () => {
-      if (!fileInput.files[0]) return;
-      const file = fileInput.files[0];
+    uploadCotes.onclick = () => cotesInput.click();
+    uploadResultats.onclick = () => resultatsInput.click();
+    cotesInput.onchange = () => { cotesFile = cotesInput.files[0]; };
+    resultatsInput.onchange = () => { resultatsFile = resultatsInput.files[0]; };
 
-      // Afficher l'image originale
-      previewContainer.innerHTML = '<p>Image originale :</p><img class="preview" src="' + URL.createObjectURL(file) + '">';
+    // OCR.space
+    async function ocrSpace(file, apiKey) {
+      const form = new FormData();
+      form.append('apikey', apiKey);
+      form.append('file', file, 'image.png');
+      form.append('language', 'fre');
+      form.append('OCREngine', 2);
+      const res = await fetch('https://api.ocr.space/parse/image', { method: 'POST', body: form });
+      const data = await res.json();
+      if (data.IsErroredOnProcessing) throw new Error(data.ErrorMessage || 'Erreur OCR');
+      return data.ParsedResults?.[0]?.ParsedText || '';
+    }
 
-      // Prétraiter
-      const processedBlob = await preprocessImage(file);
-      const processedUrl = URL.createObjectURL(processedBlob);
-      previewContainer.innerHTML += '<p>Image prétraitée (noir & blanc) :</p><img class="preview" src="' + processedUrl + '">';
+    // Nettoyage des noms
+    const STOP_WORDS = new Set(['se','connecter','inscrire','s\'inscrire','menu','virtuel','mes','paris','bonus','jouer','comporte','risques','restons','vigilants','bet','261','1x2','mi-tps','double','chance','dc','p','i','xv','yv','size']);
+    function cleanName(str) {
+      let cleaned = str.replace(/[^A-Za-z À-ÿ'-]/g, ' ').trim();
+      let tokens = cleaned.split(/\s+/).filter(w => w.length >= 2 && !STOP_WORDS.has(w.toLowerCase()));
+      tokens = tokens.filter(t => /^[A-Z]/.test(t));
+      return tokens.join(' ');
+    }
+    const normalize = s => s.toLowerCase().replace(/[^a-z]/g, '');
 
-      // Envoyer l'image prétraitée à l'API
-      ocrResult.textContent = 'Envoi à l\'API OCR...';
+    // Extraire les paires d'équipes depuis les résultats
+    function extractPairsAndResults(text) {
+      const lines = text.split('\n').map(l => l.trim()).filter(l => l.length > 0);
+      const pairs = [];
+      const results = {};
+      const pattern1 = /([A-Za-z .'-]+?)\s*[\[\(]\s*(\d+)\s*[-:]\s*(\d+)\s*[\]\)]\s+([A-Za-z .'-]+)/;
+      const pattern2 = /([A-Za-z .'-]+?)\s+(\d+)\s*[-:]\s*(\d+)\s+([A-Za-z .'-]+)/;
+      for (const line of lines) {
+        let m = line.match(pattern1) || line.match(pattern2);
+        if (m) {
+          const team1 = cleanName(m[1]);
+          const score = `${m[2]}-${m[3]}`;
+          const team2 = cleanName(m[4]);
+          if (team1 && team2) {
+            pairs.push({ team1, team2 });
+            results[normalize(team1)] = score;
+            results[normalize(team2)] = score;
+          }
+        }
+      }
+      return { pairs, results };
+    }
+
+    // Extraire toutes les cotes d'un texte (dans l'ordre d'apparition)
+    function extractAllOdds(text) {
+      const nums = text.match(/\d+[.,]\d+/g);
+      return nums ? nums.map(n => n.replace(',', '.')) : [];
+    }
+
+    analyzeBtn.addEventListener('click', async () => {
+      if (!cotesFile || !resultatsFile) return alert('Choisissez les deux images');
+      const apiKey = apiKeyInput.value.trim();
+      if (!apiKey) return alert('Entrez votre clé API OCR.space');
+
+      analyzeBtn.disabled = true;
+      debugArea.style.display = 'none';
+      resultTable.style.display = 'none';
+      actionsDiv.style.display = 'none';
+
       try {
-        const text = await uploadAndOCR(processedBlob);
-        ocrResult.textContent = 'Texte extrait (prétraité) :\n' + (text || '(vide)');
-      } catch (e) {
-        ocrResult.textContent = 'Erreur : ' + e.message;
+        const [cotesText, resultatsText] = await Promise.all([
+          ocrSpace(cotesFile, apiKey),
+          ocrSpace(resultatsFile, apiKey)
+        ]);
+
+        cotesDebug.textContent = cotesText || '(vide)';
+        resultatsDebug.textContent = resultatsText || '(vide)';
+        debugArea.style.display = 'block';
+
+        // Extraire les paires et résultats
+        const { pairs, results } = extractPairsAndResults(resultatsText);
+        // Extraire toutes les cotes
+        const allOdds = extractAllOdds(cotesText);
+        
+        // Associer les cotes aux paires (3 cotes par match : 1,N,2 ou 2 cotes : 1,2)
+        const matches = [];
+        let oddIdx = 0;
+        for (const pair of pairs) {
+          if (oddIdx + 1 >= allOdds.length) break;
+          const home = allOdds[oddIdx];
+          const draw = (oddIdx + 2 < allOdds.length) ? allOdds[oddIdx + 1] : null;
+          const away = draw ? allOdds[oddIdx + 2] : allOdds[oddIdx + 1];
+          matches.push({
+            team1: pair.team1,
+            team2: pair.team2,
+            homeOdd: home,
+            drawOdd: draw,
+            awayOdd: away
+          });
+          oddIdx += draw ? 3 : 2;
+        }
+
+        // Fusion et calculs
+        matches.forEach(m => {
+          const key1 = normalize(m.team1);
+          const key2 = normalize(m.team2);
+          m.result = results[key1] || results[key2] || '–';
+          const h = parseFloat(m.homeOdd);
+          const d = parseFloat(m.drawOdd);
+          const a = parseFloat(m.awayOdd);
+          if (!isNaN(h) && !isNaN(a)) {
+            m.sum12 = (h + a).toFixed(2);
+            m.sum1N2 = !isNaN(d) ? (h + d + a).toFixed(2) : '–';
+            m.mean = !isNaN(d) ? ((h + d + a) / 3).toFixed(2) : '–';
+          } else {
+            m.sum12 = m.sum1N2 = m.mean = '–';
+          }
+        });
+
+        tbody.innerHTML = '';
+        matches.forEach(m => {
+          const tr = document.createElement('tr');
+          tr.innerHTML = `<td>${m.team1}</td><td>${m.team2}</td>
+            <td>${m.homeOdd || '–'}</td><td>${m.drawOdd || '–'}</td><td>${m.awayOdd || '–'}</td>
+            <td>${m.sum12}</td><td>${m.sum1N2}</td><td>${m.mean}</td><td>${m.result}</td>`;
+          tbody.appendChild(tr);
+        });
+        resultTable.style.display = 'table';
+        actionsDiv.style.display = 'flex';
+      } catch (err) {
+        alert('Erreur : ' + err.message);
+      } finally {
+        analyzeBtn.disabled = false;
       }
     });
 
-    function preprocessImage(file) {
-      return new Promise((resolve) => {
-        const img = new Image();
-        img.onload = () => {
-          const canvas = document.createElement('canvas');
-          const ctx = canvas.getContext('2d');
-          canvas.width = img.width * 2;
-          canvas.height = img.height * 2;
-          ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-          const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-          const data = imageData.data;
-          for (let i = 0; i < data.length; i += 4) {
-            const gray = 0.299 * data[i] + 0.587 * data[i+1] + 0.114 * data[i+2];
-            const val = gray > 128 ? 255 : 0;
-            data[i] = val;
-            data[i+1] = val;
-            data[i+2] = val;
-          }
-          ctx.putImageData(imageData, 0, 0);
-          canvas.toBlob(resolve, 'image/png');
-        };
-        img.src = URL.createObjectURL(file);
+    // Copier / CSV
+    document.getElementById('copyBtn').onclick = () => {
+      const lines = [...tbody.querySelectorAll('tr')].map(tr =>
+        [...tr.querySelectorAll('td')].map(td => td.textContent).join('\t')
+      ).join('\n');
+      navigator.clipboard.writeText(lines).then(() => alert('Copié !'));
+    };
+    document.getElementById('csvBtn').onclick = () => {
+      let csv = 'Équipe 1,Équipe 2,1,N,2,Somme 1+2,Somme 1+N+2,Moyenne,Résultat\n';
+      [...tbody.querySelectorAll('tr')].forEach(tr => {
+        const tds = [...tr.querySelectorAll('td')].map(td => td.textContent);
+        csv += tds.map(v => `"${v}"`).join(',') + '\n';
       });
-    }
-
-    async function uploadAndOCR(blob) {
-      const form = new FormData();
-      form.append('image', blob, 'image.png');
-      const res = await fetch('/api/ocr', { method: 'POST', body: form });
-      if (!res.ok) throw new Error('HTTP ' + res.status);
-      const data = await res.json();
-      if (data.error) throw new Error(data.error);
-      return data.text || '';
-    }
+      const blob = new Blob([csv], { type: 'text/csv' });
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = 'matchs.csv';
+      a.click();
+    };
   </script>
 </body>
 </html>
