@@ -3,10 +3,9 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Bet261 – Fusion OCR.space</title>
+  <title>Bet261 – Fusion OCR.space v2</title>
   <style>
     body { font-family: sans-serif; max-width: 800px; margin: 2rem auto; padding: 0 1rem; }
-    .upload-area { border: 2px dashed #aaa; padding: 2rem; text-align: center; cursor: pointer; margin-bottom: 1rem; }
     button { padding: 0.8rem 1.5rem; background: #1a73e8; color: white; border: none; border-radius: 6px; cursor: pointer; }
     button:disabled { opacity: 0.6; }
     table { width: 100%; border-collapse: collapse; margin-top: 1rem; display: none; }
@@ -16,18 +15,12 @@
   </style>
 </head>
 <body>
-  <h1>⚽ Bet261 – Fusion OCR.space</h1>
+  <h1>⚽ Bet261 – Fusion OCR.space v2</h1>
   <p>1. Chargez la capture des <strong>cotes</strong></p>
-  <div class="upload-area" id="uploadCotes">
-    <p>📷 Cliquez pour choisir l'image</p>
-    <input type="file" id="cotesInput" accept="image/*" hidden>
-  </div>
+  <input type="file" id="cotesInput" accept="image/*" />
   <p>2. Chargez la capture des <strong>résultats</strong></p>
-  <div class="upload-area" id="uploadResultats">
-    <p>📷 Cliquez pour choisir l'image</p>
-    <input type="file" id="resultatsInput" accept="image/*" hidden>
-  </div>
-  <p>3. <strong>Clé API OCR.space</strong> (gratuite sur <a href="https://ocr.space/ocrapi/freekey" target="_blank">ocr.space</a>)</p>
+  <input type="file" id="resultatsInput" accept="image/*" />
+  <p>3. Clé API OCR.space</p>
   <input type="text" id="apiKey" placeholder="Votre clé API" style="width:100%; padding:0.5rem; margin-bottom:1rem;" />
   <button id="analyzeBtn">Analyser</button>
   <div id="debugArea" style="display:none;">
@@ -46,8 +39,6 @@
   </div>
 
   <script>
-    const uploadCotes = document.getElementById('uploadCotes');
-    const uploadResultats = document.getElementById('uploadResultats');
     const cotesInput = document.getElementById('cotesInput');
     const resultatsInput = document.getElementById('resultatsInput');
     const apiKeyInput = document.getElementById('apiKey');
@@ -58,12 +49,6 @@
     const resultTable = document.getElementById('resultTable');
     const tbody = resultTable.querySelector('tbody');
     const actionsDiv = document.getElementById('actions');
-    let cotesFile = null, resultatsFile = null;
-
-    uploadCotes.onclick = () => cotesInput.click();
-    uploadResultats.onclick = () => resultatsInput.click();
-    cotesInput.onchange = () => { cotesFile = cotesInput.files[0]; };
-    resultatsInput.onchange = () => { resultatsFile = resultatsInput.files[0]; };
 
     // OCR.space
     async function ocrSpace(file, apiKey) {
@@ -88,15 +73,15 @@
     }
     const normalize = s => s.toLowerCase().replace(/[^a-z]/g, '');
 
-    // Extraire les paires d'équipes depuis les résultats
-    function extractPairsAndResults(text) {
+    // Extraction des paires et scores depuis le texte résultats
+    function extractResults(text) {
       const lines = text.split('\n').map(l => l.trim()).filter(l => l.length > 0);
       const pairs = [];
       const results = {};
-      const pattern1 = /([A-Za-z .'-]+?)\s*[\[\(]\s*(\d+)\s*[-:]\s*(\d+)\s*[\]\)]\s+([A-Za-z .'-]+)/;
-      const pattern2 = /([A-Za-z .'-]+?)\s+(\d+)\s*[-:]\s*(\d+)\s+([A-Za-z .'-]+)/;
+      // Motif: "Équipe1 ... (score) ... Équipe2" ou "Équipe1 score Équipe2"
+      const pattern = /([A-Za-z .'-]+?)\s+(\d+)\s*[-:]\s*(\d+)\s+([A-Za-z .'-]+)/;
       for (const line of lines) {
-        let m = line.match(pattern1) || line.match(pattern2);
+        const m = line.match(pattern);
         if (m) {
           const team1 = cleanName(m[1]);
           const score = `${m[2]}-${m[3]}`;
@@ -111,14 +96,45 @@
       return { pairs, results };
     }
 
-    // Extraire toutes les cotes d'un texte (dans l'ordre d'apparition)
-    function extractAllOdds(text) {
-      const nums = text.match(/\d+[.,]\d+/g);
-      return nums ? nums.map(n => n.replace(',', '.')) : [];
+    // Extraction des cotes par paires
+    function extractOddsForPairs(text, pairs) {
+      const lines = text.split('\n').map(l => l.trim()).filter(l => l.length > 0);
+      const matches = [];
+      const oddRegex = /\d+[.,]\d+/g;
+
+      for (const pair of pairs) {
+        // Trouver les lignes contenant les deux équipes (ou au moins la première)
+        const idx1 = lines.findIndex(l => normalize(cleanName(l)) === normalize(pair.team1));
+        const idx2 = lines.findIndex(l => normalize(cleanName(l)) === normalize(pair.team2));
+        if (idx1 === -1) continue;
+        
+        // Chercher les cotes après la première équipe (ou entre les deux)
+        const startIdx = idx1;
+        const endIdx = idx2 !== -1 ? Math.max(idx2, idx1) : idx1 + 3;
+        let odds = [];
+        for (let i = startIdx; i <= Math.min(endIdx + 2, lines.length - 1); i++) {
+          const nums = lines[i].match(oddRegex);
+          if (nums) odds.push(...nums.map(n => n.replace(',', '.')));
+        }
+        
+        if (odds.length >= 2) {
+          const home = odds[0];
+          const away = odds.length === 3 ? odds[2] : odds[1];
+          const draw = odds.length === 3 ? odds[1] : null;
+          matches.push({
+            team1: pair.team1,
+            team2: pair.team2,
+            homeOdd: home,
+            drawOdd: draw,
+            awayOdd: away
+          });
+        }
+      }
+      return matches;
     }
 
     analyzeBtn.addEventListener('click', async () => {
-      if (!cotesFile || !resultatsFile) return alert('Choisissez les deux images');
+      if (!cotesInput.files[0] || !resultatsInput.files[0]) return alert('Choisissez les deux images');
       const apiKey = apiKeyInput.value.trim();
       if (!apiKey) return alert('Entrez votre clé API OCR.space');
 
@@ -129,38 +145,17 @@
 
       try {
         const [cotesText, resultatsText] = await Promise.all([
-          ocrSpace(cotesFile, apiKey),
-          ocrSpace(resultatsFile, apiKey)
+          ocrSpace(cotesInput.files[0], apiKey),
+          ocrSpace(resultatsInput.files[0], apiKey)
         ]);
 
         cotesDebug.textContent = cotesText || '(vide)';
         resultatsDebug.textContent = resultatsText || '(vide)';
         debugArea.style.display = 'block';
 
-        // Extraire les paires et résultats
-        const { pairs, results } = extractPairsAndResults(resultatsText);
-        // Extraire toutes les cotes
-        const allOdds = extractAllOdds(cotesText);
-        
-        // Associer les cotes aux paires (3 cotes par match : 1,N,2 ou 2 cotes : 1,2)
-        const matches = [];
-        let oddIdx = 0;
-        for (const pair of pairs) {
-          if (oddIdx + 1 >= allOdds.length) break;
-          const home = allOdds[oddIdx];
-          const draw = (oddIdx + 2 < allOdds.length) ? allOdds[oddIdx + 1] : null;
-          const away = draw ? allOdds[oddIdx + 2] : allOdds[oddIdx + 1];
-          matches.push({
-            team1: pair.team1,
-            team2: pair.team2,
-            homeOdd: home,
-            drawOdd: draw,
-            awayOdd: away
-          });
-          oddIdx += draw ? 3 : 2;
-        }
+        const { pairs, results } = extractResults(resultatsText);
+        const matches = extractOddsForPairs(cotesText, pairs);
 
-        // Fusion et calculs
         matches.forEach(m => {
           const key1 = normalize(m.team1);
           const key2 = normalize(m.team2);
@@ -194,7 +189,6 @@
       }
     });
 
-    // Copier / CSV
     document.getElementById('copyBtn').onclick = () => {
       const lines = [...tbody.querySelectorAll('tr')].map(tr =>
         [...tr.querySelectorAll('td')].map(td => td.textContent).join('\t')
