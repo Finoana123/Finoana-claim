@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Bet261 – Étape 1 : Cotes uniquement</title>
+  <title>Bet261 – Étape 1 : Cotes (par colonnes)</title>
   <style>
     body { font-family: sans-serif; max-width: 800px; margin: 2rem auto; padding: 0 1rem; }
     button { padding: 0.8rem 1.5rem; background: #1a73e8; color: white; border: none; border-radius: 6px; cursor: pointer; }
@@ -15,7 +15,7 @@
   </style>
 </head>
 <body>
-  <h1>⚽ Bet261 – Étape 1 : Cotes</h1>
+  <h1>⚽ Bet261 – Cotes (par colonnes)</h1>
   <p>Chargez la capture des <strong>cotes</strong> (avant match).</p>
   <input type="file" id="cotesInput" accept="image/*" />
   <p>Clé API OCR.space</p>
@@ -72,7 +72,7 @@
       'classement', 'mt', 'all', 'hall', '4g+', 'trail', 'o', 'v', '|'
     ]);
 
-    // Nettoyage nom d'équipe
+    // Nettoyage nom d'équipe (préserve les points)
     function cleanName(str) {
       let cleaned = str.replace(/[^A-Za-zÀ-ÿ .'-]/g, ' ').trim();
       let tokens = cleaned.split(/\s+/).filter(w => {
@@ -83,42 +83,59 @@
       return tokens.join(' ').trim();
     }
 
-    // Extraction des cotes : on lit les équipes dans l'ordre, puis on associe les cotes trois par trois
+    // Extraction des cotes par colonnes
     function extractOdds(text) {
       const lines = text.split('\n').map(l => l.trim()).filter(l => l.length > 0);
       const teamSequence = [];
-      const pureNumbers = [];
+      const allNumbers = [];
 
+      // Première passe : séparer équipes et nombres
       for (const line of lines) {
         const name = cleanName(line);
         const numbers = line.match(/\d+[.,]\d+/g);
         if (numbers) {
-          pureNumbers.push(...numbers.map(n => n.replace(',', '.')));
+          allNumbers.push(...numbers.map(n => n.replace(',', '.')));
         }
         if (name && !numbers) {
-          teamSequence.push(name);
+          // Éviter les doublons (une même équipe peut apparaître deux fois à cause de l'OCR)
+          if (!teamSequence.includes(name)) {
+            teamSequence.push(name);
+          }
         }
       }
 
-      // Regrouper les équipes deux par deux
+      // --- Réorganisation des cotes par colonnes ---
+      // Sur la capture Bet261, il y a 3 colonnes de cotes (1, N, 2) et 10 matchs → 30 cotes.
+      // L'OCR lit d'abord la colonne 1 (10 nombres), puis la colonne N (10), puis la colonne 2 (10).
+      const totalOdds = allNumbers.length;
+      const numMatches = teamSequence.length / 2; // nombre de paires d'équipes
+      
+      if (totalOdds % 3 !== 0) {
+        console.warn('Nombre total de cotes non multiple de 3, ajustement...');
+      }
+      
+      const colSize = Math.floor(totalOdds / 3);
+      const col1 = allNumbers.slice(0, colSize);
+      const colN = allNumbers.slice(colSize, colSize * 2);
+      const col2 = allNumbers.slice(colSize * 2, colSize * 3);
+
+      // Créer les paires d'équipes (2 par 2)
       const pairs = [];
       for (let i = 0; i < teamSequence.length - 1; i += 2) {
         pairs.push({ team1: teamSequence[i], team2: teamSequence[i+1] });
       }
 
-      // Les cotes sont toujours groupées par 3 sur la capture : 1, N, 2
+      // Assembler les matchs
       const matches = [];
-      let oddIdx = 0;
-      for (const pair of pairs) {
-        if (oddIdx + 2 >= pureNumbers.length) break;
+      const limit = Math.min(pairs.length, col1.length);
+      for (let i = 0; i < limit; i++) {
         matches.push({
-          team1: pair.team1,
-          team2: pair.team2,
-          homeOdd: pureNumbers[oddIdx],
-          drawOdd: pureNumbers[oddIdx+1],
-          awayOdd: pureNumbers[oddIdx+2]
+          team1: pairs[i].team1,
+          team2: pairs[i].team2,
+          homeOdd: col1[i] || '–',
+          drawOdd: colN[i] || '–',
+          awayOdd: col2[i] || '–'
         });
-        oddIdx += 3;
       }
       return matches;
     }
@@ -142,7 +159,6 @@
 
         tbody.innerHTML = '';
         matches.forEach(m => {
-          // Calculer sommes et moyenne
           const h = parseFloat(m.homeOdd);
           const d = parseFloat(m.drawOdd);
           const a = parseFloat(m.awayOdd);
