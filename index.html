@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Bet261 – Fusion avec OCR.space (prétraité)</title>
+  <title>Bet261 – OCR Debug</title>
   <style>
     :root {
       --primary: #1a73e8;
@@ -21,116 +21,61 @@
     }
     .container { max-width: 900px; width: 100%; }
     .header { text-align: center; margin-bottom: 2rem; }
-    .header h1 { font-weight: 400; font-size: 2rem; margin: 0 0 0.5rem; }
-    .header p { color: #5f6368; }
-    .upload-row { display: flex; gap: 1rem; flex-wrap: wrap; }
-    .upload-card {
-      flex: 1 1 250px; background: var(--card-bg);
-      border-radius: 12px; padding: 1.5rem; box-shadow: 0 1px 4px rgba(0,0,0,0.1);
-    }
-    .upload-area {
-      border: 2px dashed var(--border); border-radius: 8px;
-      padding: 1.5rem; text-align: center; cursor: pointer;
-    }
-    .upload-area:hover { border-color: var(--primary); background: #f1f5ff; }
-    .upload-area input { display: none; }
     .btn {
       display: inline-block; padding: 0.6rem 1.5rem;
       background: var(--primary); color: white; border: none;
       border-radius: 6px; font-size: 1rem; cursor: pointer;
-      margin-top: 1rem; transition: 0.2s;
     }
     .btn:disabled { opacity: 0.6; cursor: not-allowed; }
-    .btn-outline {
-      background: white; color: var(--primary); border: 1px solid var(--primary);
-    }
-    .result-card {
-      background: var(--card-bg); border-radius: 12px;
-      padding: 1.5rem; margin-top: 2rem; box-shadow: 0 1px 4px rgba(0,0,0,0.1);
-      display: none;
-    }
-    table { width: 100%; border-collapse: collapse; font-size: 0.9rem; }
-    th, td { text-align: left; padding: 0.5rem 0.3rem; border-bottom: 1px solid var(--border); }
-    th { font-weight: 500; color: #5f6368; }
-    .actions { display: flex; gap: 0.5rem; margin-top: 1rem; justify-content: flex-end; }
-    .debug { background: #f4f4f4; padding: 1rem; margin-top: 1rem; border-radius: 8px; white-space: pre-wrap; font-family: monospace; max-height: 200px; overflow-y: auto; }
+    .debug { background: #f4f4f4; padding: 1rem; white-space: pre-wrap; font-family: monospace; margin: 0.5rem 0; }
+    img.preview { max-width: 200px; border: 1px solid #ccc; }
+    table { width: 100%; border-collapse: collapse; }
+    th, td { border: 1px solid #ddd; padding: 0.4rem; }
   </style>
 </head>
 <body>
   <div class="container">
-    <div class="header">
-      <h1>⚽ Bet261 – Fusion automatique</h1>
-      <p>1. Capture des cotes (avant match)<br>2. Capture des résultats (après match)</p>
-    </div>
-    <div class="upload-row">
-      <div class="upload-card">
-        <h3>1. Cotes</h3>
-        <div class="upload-area" id="oddsArea">
-          <p>📷 Image cotes</p>
-          <input type="file" id="oddsInput" accept="image/*">
-        </div>
-      </div>
-      <div class="upload-card">
-        <h3>2. Résultats</h3>
-        <div class="upload-area" id="resultsArea">
-          <p>📷 Image résultats</p>
-          <input type="file" id="resultsInput" accept="image/*">
-        </div>
-      </div>
-    </div>
-    <button class="btn" id="analyzeBtn" disabled>Analyser</button>
-    <div id="status"></div>
-
-    <div id="debugArea" style="display:none;">
-      <h3>OCR brut – Cotes</h3>
-      <div id="oddsDebug" class="debug">(vide)</div>
-      <h3>OCR brut – Résultats</h3>
-      <div id="resultsDebug" class="debug">(vide)</div>
-    </div>
-
-    <div class="result-card" id="resultCard">
-      <h2>Tableau fusionné</h2>
-      <div style="overflow-x:auto;">
-        <table id="matchTable">
-          <thead><tr><th>Équipe 1</th><th>Équipe 2</th><th>1</th><th>N</th><th>2</th><th>S 1+2</th><th>S 1+N+2</th><th>Moy</th><th>Résultat</th></tr></thead>
-          <tbody></tbody>
-        </table>
-      </div>
-      <div class="actions">
-        <button class="btn btn-outline" id="copyBtn">📋 Copier</button>
-        <button class="btn btn-outline" id="csvBtn">📥 CSV</button>
-      </div>
-    </div>
+    <h2>OCR Debug – Étape 1 : image prétraitée</h2>
+    <input type="file" id="fileInput" accept="image/*">
+    <button id="debugBtn" class="btn">Tester le prétraitement</button>
+    <div id="previewContainer"></div>
+    <div id="ocrResult" class="debug"></div>
   </div>
 
   <script>
-    const oddsInput = document.getElementById('oddsInput');
-    const resultsInput = document.getElementById('resultsInput');
-    const analyzeBtn = document.getElementById('analyzeBtn');
-    const resultCard = document.getElementById('resultCard');
-    const tbody = document.querySelector('#matchTable tbody');
-    const statusDiv = document.getElementById('status');
-    const oddsArea = document.getElementById('oddsArea');
-    const resultsArea = document.getElementById('resultsArea');
-    const debugArea = document.getElementById('debugArea');
-    const oddsDebug = document.getElementById('oddsDebug');
-    const resultsDebug = document.getElementById('resultsDebug');
-    let oddsFile = null, resultsFile = null;
+    const fileInput = document.getElementById('fileInput');
+    const debugBtn = document.getElementById('debugBtn');
+    const previewContainer = document.getElementById('previewContainer');
+    const ocrResult = document.getElementById('ocrResult');
 
-    oddsArea.onclick = () => oddsInput.click();
-    resultsArea.onclick = () => resultsInput.click();
-    oddsInput.onchange = () => { oddsFile = oddsInput.files[0]; check(); };
-    resultsInput.onchange = () => { resultsFile = resultsInput.files[0]; check(); };
-    function check() { analyzeBtn.disabled = !(oddsFile && resultsFile); }
+    debugBtn.addEventListener('click', async () => {
+      if (!fileInput.files[0]) return;
+      const file = fileInput.files[0];
 
-    // Prétraitement : noir & blanc strict + agrandissement
+      // Afficher l'image originale
+      previewContainer.innerHTML = '<p>Image originale :</p><img class="preview" src="' + URL.createObjectURL(file) + '">';
+
+      // Prétraiter
+      const processedBlob = await preprocessImage(file);
+      const processedUrl = URL.createObjectURL(processedBlob);
+      previewContainer.innerHTML += '<p>Image prétraitée (noir & blanc) :</p><img class="preview" src="' + processedUrl + '">';
+
+      // Envoyer l'image prétraitée à l'API
+      ocrResult.textContent = 'Envoi à l\'API OCR...';
+      try {
+        const text = await uploadAndOCR(processedBlob);
+        ocrResult.textContent = 'Texte extrait (prétraité) :\n' + (text || '(vide)');
+      } catch (e) {
+        ocrResult.textContent = 'Erreur : ' + e.message;
+      }
+    });
+
     function preprocessImage(file) {
       return new Promise((resolve) => {
         const img = new Image();
         img.onload = () => {
           const canvas = document.createElement('canvas');
           const ctx = canvas.getContext('2d');
-          // Agrandir de 2x pour améliorer la lisibilité
           canvas.width = img.width * 2;
           canvas.height = img.height * 2;
           ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
@@ -138,7 +83,7 @@
           const data = imageData.data;
           for (let i = 0; i < data.length; i += 4) {
             const gray = 0.299 * data[i] + 0.587 * data[i+1] + 0.114 * data[i+2];
-            const val = gray > 128 ? 255 : 0; // seuil simple
+            const val = gray > 128 ? 255 : 0;
             data[i] = val;
             data[i+1] = val;
             data[i+2] = val;
@@ -150,161 +95,15 @@
       });
     }
 
-    async function uploadAndOCR(file) {
-      const processedBlob = await preprocessImage(file);
+    async function uploadAndOCR(blob) {
       const form = new FormData();
-      form.append('image', processedBlob, 'image.png');
+      form.append('image', blob, 'image.png');
       const res = await fetch('/api/ocr', { method: 'POST', body: form });
+      if (!res.ok) throw new Error('HTTP ' + res.status);
       const data = await res.json();
       if (data.error) throw new Error(data.error);
       return data.text || '';
     }
-
-    const STOP_WORDS = new Set(['se','connecter','inscrire','s\'inscrire','menu','virtuel','mes','paris','bonus','jouer','comporte','risques','restons','vigilants','bet','261','1x2','mi-tps','double','chance','dc','p','i','xv','yv','size']);
-    function cleanName(str) {
-      let cleaned = str.replace(/[^A-Za-z À-ÿ'-]/g, ' ').trim();
-      let tokens = cleaned.split(/\s+/).filter(w => w.length >= 2 && !STOP_WORDS.has(w.toLowerCase()));
-      tokens = tokens.filter(t => /^[A-Z]/.test(t));
-      return tokens.join(' ');
-    }
-
-    function isParasiteLine(line) {
-      return /^(P:|I:|Xv:|Yv:|Size:|size:|Jouer|restons|©|\(|\)|\[|\]|2s bet261|o—|\. )/.test(line);
-    }
-
-    // Nouvelle extraction adaptée aux cotes sur plusieurs lignes
-    function extractOdds(text) {
-      const lines = text.split('\n').map(l => l.trim()).filter(l => l.length > 0 && !isParasiteLine(l));
-      const matches = [];
-      let i = 0;
-      while (i < lines.length) {
-        // Chercher une équipe (ligne avec du texte mais sans nombre décimal)
-        const teamCandidate = lines[i];
-        if (/[A-Za-z]/.test(teamCandidate) && !/\d+[.,]\d+/.test(teamCandidate)) {
-          // Chercher une deuxième équipe juste en dessous
-          let j = i + 1;
-          while (j < lines.length && /[A-Za-z]/.test(lines[j]) && !/\d+[.,]\d+/.test(lines[j])) {
-            // trouvé une deuxième équipe potentielle
-            const team1 = cleanName(teamCandidate);
-            const team2 = cleanName(lines[j]);
-            if (team1 && team2) {
-              // Récupérer les cotes dans les lignes qui suivent (max 3 lignes)
-              let odds = [];
-              for (let k = j + 1; k < lines.length && odds.length < 3; k++) {
-                const nums = lines[k].match(/\d+[.,]\d+/g);
-                if (nums) odds.push(...nums.map(n => n.replace(',', '.')));
-              }
-              if (odds.length >= 2) {
-                const homeOdd = odds[0];
-                const drawOdd = odds.length >= 3 ? odds[1] : null;
-                const awayOdd = odds.length >= 3 ? odds[2] : odds[1];
-                matches.push({ team1, team2, homeOdd, drawOdd, awayOdd });
-                i = j + odds.length; // avancer après les cotes
-                break;
-              }
-            }
-            j++;
-          }
-        }
-        i++;
-      }
-      return matches;
-    }
-
-    function extractResults(text) {
-      const lines = text.split('\n').map(l => l.trim()).filter(l => l.length > 0);
-      const results = {};
-      const pattern1 = /([A-Za-z .'-]+?)\s*[\[\(]\s*(\d+)\s*[-:]\s*(\d+)\s*[\]\)]\s+([A-Za-z .'-]+)/;
-      const pattern2 = /([A-Za-z .'-]+?)\s+(\d+)\s*[-:]\s*(\d+)\s+([A-Za-z .'-]+)/;
-      for (const line of lines) {
-        let m = line.match(pattern1) || line.match(pattern2);
-        if (m) {
-          const team1 = cleanName(m[1]);
-          const score = `${m[2]}-${m[3]}`;
-          const team2 = cleanName(m[4]);
-          if (team1 && team2) {
-            results[team1.toLowerCase()] = score;
-            results[team2.toLowerCase()] = score;
-          }
-        }
-      }
-      return results;
-    }
-
-    analyzeBtn.onclick = async () => {
-      analyzeBtn.disabled = true;
-      statusDiv.innerHTML = 'OCR en cours...';
-      resultCard.style.display = 'none';
-      debugArea.style.display = 'none';
-
-      try {
-        const [oddsText, resultsText] = await Promise.all([
-          uploadAndOCR(oddsFile),
-          uploadAndOCR(resultsFile)
-        ]);
-
-        oddsDebug.textContent = oddsText || '(vide)';
-        resultsDebug.textContent = resultsText || '(vide)';
-        debugArea.style.display = 'block';
-
-        const matches = extractOdds(oddsText);
-        const results = extractResults(resultsText);
-
-        matches.forEach(m => {
-          const key1 = m.team1.toLowerCase();
-          const key2 = m.team2.toLowerCase();
-          m.result = results[key1] || results[key2] || '–';
-          const h = parseFloat(m.homeOdd);
-          const d = parseFloat(m.drawOdd);
-          const a = parseFloat(m.awayOdd);
-          if (!isNaN(h) && !isNaN(a)) {
-            m.sum12 = (h + a).toFixed(2);
-            m.sum1N2 = !isNaN(d) ? (h + d + a).toFixed(2) : '–';
-            m.mean = !isNaN(d) ? ((h + d + a) / 3).toFixed(2) : '–';
-          } else {
-            m.sum12 = m.sum1N2 = m.mean = '–';
-          }
-        });
-
-        tbody.innerHTML = '';
-        matches.forEach(m => {
-          const tr = document.createElement('tr');
-          tr.innerHTML = `<td>${m.team1}</td><td>${m.team2}</td>
-            <td>${m.homeOdd || '–'}</td><td>${m.drawOdd || '–'}</td><td>${m.awayOdd || '–'}</td>
-            <td>${m.sum12}</td><td>${m.sum1N2}</td><td>${m.mean}</td><td>${m.result}</td>`;
-          tbody.appendChild(tr);
-        });
-        resultCard.style.display = 'block';
-        statusDiv.innerHTML = '';
-        window._matches = matches;
-      } catch (err) {
-        statusDiv.innerHTML = `❌ Erreur : ${err.message}`;
-        debugArea.style.display = 'block';
-      } finally {
-        analyzeBtn.disabled = false;
-      }
-    };
-
-    // Boutons copier / CSV
-    document.getElementById('copyBtn').onclick = () => {
-      if (!window._matches) return;
-      const lines = window._matches.map(m =>
-        `${m.team1}\t${m.team2}\t${m.homeOdd||'-'}\t${m.drawOdd||'-'}\t${m.awayOdd||'-'}\t${m.sum12}\t${m.sum1N2}\t${m.mean}\t${m.result}`
-      ).join('\n');
-      navigator.clipboard.writeText(lines).then(() => alert('Copié !'));
-    };
-    document.getElementById('csvBtn').onclick = () => {
-      if (!window._matches) return;
-      let csv = 'Équipe 1,Équipe 2,1,N,2,Somme 1+2,Somme 1+N+2,Moyenne,Résultat\n';
-      window._matches.forEach(m => {
-        csv += `"${m.team1}","${m.team2}",${m.homeOdd||''},${m.drawOdd||''},${m.awayOdd||''},${m.sum12},${m.sum1N2},${m.mean},"${m.result}"\n`;
-      });
-      const blob = new Blob([csv], { type: 'text/csv' });
-      const a = document.createElement('a');
-      a.href = URL.createObjectURL(blob);
-      a.download = 'matchs_fusion.csv';
-      a.click();
-    };
   </script>
 </body>
 </html>
