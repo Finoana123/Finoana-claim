@@ -53,7 +53,7 @@
     th, td { text-align: left; padding: 0.5rem 0.3rem; border-bottom: 1px solid var(--border); }
     th { font-weight: 500; color: #5f6368; }
     .actions { display: flex; gap: 0.5rem; margin-top: 1rem; justify-content: flex-end; }
-    .debug { background: #f4f4f4; padding: 1rem; margin-top: 1rem; border-radius: 8px; white-space: pre-wrap; font-family: monospace; }
+    .debug { background: #f4f4f4; padding: 1rem; margin-top: 1rem; border-radius: 8px; white-space: pre-wrap; font-family: monospace; max-height: 200px; overflow-y: auto; }
   </style>
 </head>
 <body>
@@ -81,12 +81,12 @@
     <button class="btn" id="analyzeBtn" disabled>Analyser</button>
     <div id="status"></div>
 
-    <!-- Zone de debug (cachée par défaut) -->
+    <!-- Zone de debug TOUJOURS affichée après analyse -->
     <div id="debugArea" style="display:none;">
       <h3>OCR brut – Cotes</h3>
-      <div id="oddsDebug" class="debug"></div>
+      <div id="oddsDebug" class="debug">(vide)</div>
       <h3>OCR brut – Résultats</h3>
-      <div id="resultsDebug" class="debug"></div>
+      <div id="resultsDebug" class="debug">(vide)</div>
     </div>
 
     <div class="result-card" id="resultCard">
@@ -130,7 +130,7 @@
       const res = await fetch('/api/ocr', { method: 'POST', body: form });
       const data = await res.json();
       if (data.error) throw new Error(data.error);
-      return data.text;
+      return data.text || '';  // renvoie une chaîne vide si pas de texte
     }
 
     const STOP_WORDS = new Set(['se','connecter','inscrire','s\'inscrire','menu','virtuel','mes','paris','bonus','jouer','comporte','risques','restons','vigilants','bet','261','1x2','mi-tps','double','chance','dc','p','i','xv','yv','size']);
@@ -233,9 +233,9 @@
           uploadAndOCR(resultsFile)
         ]);
 
-        // Afficher le texte brut pour debug
-        oddsDebug.textContent = oddsText;
-        resultsDebug.textContent = resultsText;
+        // Toujours afficher les textes bruts
+        oddsDebug.textContent = oddsText || '(vide)';
+        resultsDebug.textContent = resultsText || '(vide)';
         debugArea.style.display = 'block';
 
         const matches = extractOdds(oddsText);
@@ -270,12 +270,14 @@
         window._matches = matches;
       } catch (err) {
         statusDiv.innerHTML = `❌ Erreur : ${err.message}`;
+        // En cas d'erreur, on affiche quand même la zone de debug pour voir les textes déjà récupérés
+        debugArea.style.display = 'block';
       } finally {
         analyzeBtn.disabled = false;
       }
     };
 
-    // Boutons Copier / CSV (inchangés)
+    // Boutons copier / CSV (inchangés)
     document.getElementById('copyBtn').onclick = () => {
       if (!window._matches) return;
       const lines = window._matches.map(m =>
