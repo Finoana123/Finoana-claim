@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Bet261 – Étape 1 : Cotes (par colonnes)</title>
+  <title>Bet261 – Cotes sur liste officielle</title>
   <style>
     body { font-family: sans-serif; max-width: 800px; margin: 2rem auto; padding: 0 1rem; }
     button { padding: 0.8rem 1.5rem; background: #1a73e8; color: white; border: none; border-radius: 6px; cursor: pointer; }
@@ -15,7 +15,7 @@
   </style>
 </head>
 <body>
-  <h1>⚽ Bet261 – Cotes (par colonnes)</h1>
+  <h1>⚽ Bet261 – Cotes (liste officielle)</h1>
   <p>Chargez la capture des <strong>cotes</strong> (avant match).</p>
   <input type="file" id="cotesInput" accept="image/*" />
   <p>Clé API OCR.space</p>
@@ -30,7 +30,7 @@
       <tr>
         <th>Équipe 1</th><th>Équipe 2</th>
         <th>1</th><th>N</th><th>2</th>
-        <th>S 1+2</th><th>S 1+N+2</th><th>Moy</th><th>Résultat</th>
+        <th>S 1+2</th><th>S 1+N+2</th><th>Moy</th>
       </tr>
     </thead>
     <tbody></tbody>
@@ -41,6 +41,20 @@
   </div>
 
   <script>
+    // ---------- LISTE OFFICIELLE DES CLUBS (dans l'ordre d'affichage) ----------
+    const OFFICIAL_CLUBS = [
+      "Manchester Red", "Everton",
+      "Leeds", "London Blues",
+      "Burnley", "Fulham",
+      "Brentford", "West Ham",
+      "Newcastle", "Sunderland",
+      "Liverpool", "Brighton",
+      "Spurs", "A. Villa",
+      "N. Forest", "Wolverhampton",
+      "Manchester Blue", "Bournemouth",
+      "C. Palace", "London Reds"
+    ];
+
     const cotesInput = document.getElementById('cotesInput');
     const apiKeyInput = document.getElementById('apiKey');
     const analyzeBtn = document.getElementById('analyzeBtn');
@@ -63,78 +77,51 @@
       return data.ParsedResults?.[0]?.ParsedText || '';
     }
 
-    // STOP WORDS
-    const STOP_WORDS = new Set([
-      'se', 'connecter', 'inscrire', 's\'inscrire', 'menu', 'virtuel', 'mes', 'paris',
-      'bonus', 'jouer', 'comporte', 'risques', 'restons', 'vigilants', 'bet', '261',
-      '1', '2', 'x', '1x2', 'mi-tps', 'double', 'chance', 'dc',
-      'attention', 'journée', 'aujourd\'hui', 'english', 'league', 'résultats', 'matchs',
-      'classement', 'mt', 'all', 'hall', '4g+', 'trail', 'o', 'v', '|'
-    ]);
-
-    // Nettoyage nom d'équipe (préserve les points)
-    function cleanName(str) {
-      let cleaned = str.replace(/[^A-Za-zÀ-ÿ .'-]/g, ' ').trim();
-      let tokens = cleaned.split(/\s+/).filter(w => {
-        const lower = w.toLowerCase();
-        return !STOP_WORDS.has(lower) && /[A-Za-z]/.test(w);
-      });
-      tokens = tokens.map(t => t.charAt(0).toUpperCase() + t.slice(1).toLowerCase());
-      return tokens.join(' ').trim();
-    }
-
-    // Extraction des cotes par colonnes
-    function extractOdds(text) {
-      const lines = text.split('\n').map(l => l.trim()).filter(l => l.length > 0);
-      const teamSequence = [];
+    /**
+     * Extrait tous les nombres décimaux du texte, les divise en 3 colonnes,
+     * puis les associe aux paires d'équipes officielles.
+     */
+    function extractOddsFromText(text) {
+      // Récupérer tous les nombres décimaux dans l'ordre d'apparition
       const allNumbers = [];
-
-      // Première passe : séparer équipes et nombres
-      for (const line of lines) {
-        const name = cleanName(line);
-        const numbers = line.match(/\d+[.,]\d+/g);
-        if (numbers) {
-          allNumbers.push(...numbers.map(n => n.replace(',', '.')));
-        }
-        if (name && !numbers) {
-          // Éviter les doublons (une même équipe peut apparaître deux fois à cause de l'OCR)
-          if (!teamSequence.includes(name)) {
-            teamSequence.push(name);
-          }
-        }
+      const regex = /\d+[.,]\d+/g;
+      let match;
+      while ((match = regex.exec(text)) !== null) {
+        allNumbers.push(match[0].replace(',', '.'));
       }
 
-      // --- Réorganisation des cotes par colonnes ---
-      // Sur la capture Bet261, il y a 3 colonnes de cotes (1, N, 2) et 10 matchs → 30 cotes.
-      // L'OCR lit d'abord la colonne 1 (10 nombres), puis la colonne N (10), puis la colonne 2 (10).
-      const totalOdds = allNumbers.length;
-      const numMatches = teamSequence.length / 2; // nombre de paires d'équipes
-      
-      if (totalOdds % 3 !== 0) {
-        console.warn('Nombre total de cotes non multiple de 3, ajustement...');
+      // Si le nombre total est un multiple de 3, on divise en 3 colonnes
+      const total = allNumbers.length;
+      if (total % 3 !== 0) {
+        console.warn('Nombre total de cotes non multiple de 3 (' + total + '), ajustement approximatif.');
+        // Si ce n'est pas un multiple de 3, on prend le multiple inférieur
+        const correctedTotal = Math.floor(total / 3) * 3;
+        allNumbers.length = correctedTotal;
       }
-      
-      const colSize = Math.floor(totalOdds / 3);
+
+      const colSize = allNumbers.length / 3;
       const col1 = allNumbers.slice(0, colSize);
       const colN = allNumbers.slice(colSize, colSize * 2);
-      const col2 = allNumbers.slice(colSize * 2, colSize * 3);
+      const col2 = allNumbers.slice(colSize * 2);
 
-      // Créer les paires d'équipes (2 par 2)
+      // Paires d'équipes (2 par 2 dans la liste officielle)
       const pairs = [];
-      for (let i = 0; i < teamSequence.length - 1; i += 2) {
-        pairs.push({ team1: teamSequence[i], team2: teamSequence[i+1] });
+      for (let i = 0; i < OFFICIAL_CLUBS.length; i += 2) {
+        pairs.push({
+          team1: OFFICIAL_CLUBS[i],
+          team2: OFFICIAL_CLUBS[i + 1]
+        });
       }
 
-      // Assembler les matchs
+      // Associer les cotes aux paires
       const matches = [];
-      const limit = Math.min(pairs.length, col1.length);
-      for (let i = 0; i < limit; i++) {
+      for (let i = 0; i < pairs.length && i < col1.length; i++) {
         matches.push({
           team1: pairs[i].team1,
           team2: pairs[i].team2,
-          homeOdd: col1[i] || '–',
-          drawOdd: colN[i] || '–',
-          awayOdd: col2[i] || '–'
+          homeOdd: col1[i],
+          drawOdd: colN[i],
+          awayOdd: col2[i]
         });
       }
       return matches;
@@ -155,7 +142,7 @@
         cotesDebug.textContent = cotesText || '(vide)';
         debugArea.style.display = 'block';
 
-        const matches = extractOdds(cotesText);
+        const matches = extractOddsFromText(cotesText);
 
         tbody.innerHTML = '';
         matches.forEach(m => {
@@ -172,7 +159,7 @@
           const tr = document.createElement('tr');
           tr.innerHTML = `<td>${m.team1}</td><td>${m.team2}</td>
             <td>${m.homeOdd}</td><td>${m.drawOdd}</td><td>${m.awayOdd}</td>
-            <td>${sum12}</td><td>${sum1N2}</td><td>${moy}</td><td>–</td>`;
+            <td>${sum12}</td><td>${sum1N2}</td><td>${moy}</td>`;
           tbody.appendChild(tr);
         });
         resultTable.style.display = 'table';
@@ -191,7 +178,7 @@
       navigator.clipboard.writeText(text).then(() => alert('Copié !'));
     };
     document.getElementById('csvBtn').onclick = () => {
-      let csv = 'Équipe 1,Équipe 2,1,N,2,Somme 1+2,Somme 1+N+2,Moyenne,Résultat\n';
+      let csv = 'Équipe 1,Équipe 2,1,N,2,Somme 1+2,Somme 1+N+2,Moyenne\n';
       [...tbody.querySelectorAll('tr')].forEach(r => {
         const tds = [...r.querySelectorAll('td')].map(d => d.textContent);
         csv += tds.map(v => `"${v}"`).join(',') + '\n';
