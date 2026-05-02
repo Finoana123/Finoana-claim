@@ -53,6 +53,7 @@
     th, td { text-align: left; padding: 0.5rem 0.3rem; border-bottom: 1px solid var(--border); }
     th { font-weight: 500; color: #5f6368; }
     .actions { display: flex; gap: 0.5rem; margin-top: 1rem; justify-content: flex-end; }
+    .debug { background: #f4f4f4; padding: 1rem; margin-top: 1rem; border-radius: 8px; white-space: pre-wrap; font-family: monospace; }
   </style>
 </head>
 <body>
@@ -79,6 +80,15 @@
     </div>
     <button class="btn" id="analyzeBtn" disabled>Analyser</button>
     <div id="status"></div>
+
+    <!-- Zone de debug (cachée par défaut) -->
+    <div id="debugArea" style="display:none;">
+      <h3>OCR brut – Cotes</h3>
+      <div id="oddsDebug" class="debug"></div>
+      <h3>OCR brut – Résultats</h3>
+      <div id="resultsDebug" class="debug"></div>
+    </div>
+
     <div class="result-card" id="resultCard">
       <h2>Tableau fusionné</h2>
       <div style="overflow-x:auto;">
@@ -95,7 +105,6 @@
   </div>
 
   <script>
-    // DOM
     const oddsInput = document.getElementById('oddsInput');
     const resultsInput = document.getElementById('resultsInput');
     const analyzeBtn = document.getElementById('analyzeBtn');
@@ -104,6 +113,9 @@
     const statusDiv = document.getElementById('status');
     const oddsArea = document.getElementById('oddsArea');
     const resultsArea = document.getElementById('resultsArea');
+    const debugArea = document.getElementById('debugArea');
+    const oddsDebug = document.getElementById('oddsDebug');
+    const resultsDebug = document.getElementById('resultsDebug');
     let oddsFile = null, resultsFile = null;
 
     oddsArea.onclick = () => oddsInput.click();
@@ -112,7 +124,6 @@
     resultsInput.onchange = () => { resultsFile = resultsInput.files[0]; check(); };
     function check() { analyzeBtn.disabled = !(oddsFile && resultsFile); }
 
-    // Envoi d'une image à l'API OCR
     async function uploadAndOCR(file) {
       const form = new FormData();
       form.append('image', file);
@@ -122,7 +133,6 @@
       return data.text;
     }
 
-    // Parsing des cotes (identique à avant, testé)
     const STOP_WORDS = new Set(['se','connecter','inscrire','s\'inscrire','menu','virtuel','mes','paris','bonus','jouer','comporte','risques','restons','vigilants','bet','261','1x2','mi-tps','double','chance','dc','p','i','xv','yv','size']);
     function cleanName(str) {
       let cleaned = str.replace(/[^A-Za-z À-ÿ'-]/g, ' ').trim();
@@ -211,17 +221,22 @@
       return results;
     }
 
-    // Action principale
     analyzeBtn.onclick = async () => {
       analyzeBtn.disabled = true;
       statusDiv.innerHTML = 'OCR en cours...';
       resultCard.style.display = 'none';
+      debugArea.style.display = 'none';
 
       try {
         const [oddsText, resultsText] = await Promise.all([
           uploadAndOCR(oddsFile),
           uploadAndOCR(resultsFile)
         ]);
+
+        // Afficher le texte brut pour debug
+        oddsDebug.textContent = oddsText;
+        resultsDebug.textContent = resultsText;
+        debugArea.style.display = 'block';
 
         const matches = extractOdds(oddsText);
         const results = extractResults(resultsText);
@@ -260,7 +275,7 @@
       }
     };
 
-    // Boutons Copier / CSV
+    // Boutons Copier / CSV (inchangés)
     document.getElementById('copyBtn').onclick = () => {
       if (!window._matches) return;
       const lines = window._matches.map(m =>
