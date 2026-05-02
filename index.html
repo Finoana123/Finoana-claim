@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Bet261 – Fusion finale fiable</title>
+  <title>Bet261 – Étape 1 : Cotes uniquement</title>
   <style>
     body { font-family: sans-serif; max-width: 800px; margin: 2rem auto; padding: 0 1rem; }
     button { padding: 0.8rem 1.5rem; background: #1a73e8; color: white; border: none; border-radius: 6px; cursor: pointer; }
@@ -15,22 +15,24 @@
   </style>
 </head>
 <body>
-  <h1>⚽ Bet261 – Fusion finale fiable</h1>
-  <p>1. Capture des <strong>cotes</strong></p>
+  <h1>⚽ Bet261 – Étape 1 : Cotes</h1>
+  <p>Chargez la capture des <strong>cotes</strong> (avant match).</p>
   <input type="file" id="cotesInput" accept="image/*" />
-  <p>2. Capture des <strong>résultats</strong></p>
-  <input type="file" id="resultatsInput" accept="image/*" />
-  <p>3. Clé API OCR.space</p>
+  <p>Clé API OCR.space</p>
   <input type="text" id="apiKey" placeholder="Votre clé API" style="width:100%; padding:0.5rem; margin-bottom:1rem;" />
-  <button id="analyzeBtn">Analyser</button>
+  <button id="analyzeBtn">Analyser les cotes</button>
   <div id="debugArea" style="display:none;">
     <h3>Texte brut cotes</h3>
     <div id="cotesDebug" class="debug"></div>
-    <h3>Texte brut résultats</h3>
-    <div id="resultatsDebug" class="debug"></div>
   </div>
   <table id="resultTable">
-    <thead><tr><th>Équipe 1</th><th>Équipe 2</th><th>1</th><th>N</th><th>2</th><th>S 1+2</th><th>S 1+N+2</th><th>Moy</th><th>Résultat</th></tr></thead>
+    <thead>
+      <tr>
+        <th>Équipe 1</th><th>Équipe 2</th>
+        <th>1</th><th>N</th><th>2</th>
+        <th>S 1+2</th><th>S 1+N+2</th><th>Moy</th><th>Résultat</th>
+      </tr>
+    </thead>
     <tbody></tbody>
   </table>
   <div class="actions" id="actions" style="display:none;">
@@ -40,17 +42,15 @@
 
   <script>
     const cotesInput = document.getElementById('cotesInput');
-    const resultatsInput = document.getElementById('resultatsInput');
     const apiKeyInput = document.getElementById('apiKey');
     const analyzeBtn = document.getElementById('analyzeBtn');
     const debugArea = document.getElementById('debugArea');
     const cotesDebug = document.getElementById('cotesDebug');
-    const resultatsDebug = document.getElementById('resultatsDebug');
     const resultTable = document.getElementById('resultTable');
     const tbody = resultTable.querySelector('tbody');
     const actionsDiv = document.getElementById('actions');
 
-    // --- OCR via OCR.space ---
+    // OCR via OCR.space
     async function ocrSpace(file, apiKey) {
       const form = new FormData();
       form.append('apikey', apiKey);
@@ -63,7 +63,7 @@
       return data.ParsedResults?.[0]?.ParsedText || '';
     }
 
-    // --- STOP WORDS (ignore ces mots) ---
+    // STOP WORDS
     const STOP_WORDS = new Set([
       'se', 'connecter', 'inscrire', 's\'inscrire', 'menu', 'virtuel', 'mes', 'paris',
       'bonus', 'jouer', 'comporte', 'risques', 'restons', 'vigilants', 'bet', '261',
@@ -72,103 +72,59 @@
       'classement', 'mt', 'all', 'hall', '4g+', 'trail', 'o', 'v', '|'
     ]);
 
-    // --- Nettoyage des noms d'équipes (conserve A., C., N. etc.) ---
+    // Nettoyage nom d'équipe
     function cleanName(str) {
-      // Autorise lettres, points, espaces, apostrophes, tirets
       let cleaned = str.replace(/[^A-Za-zÀ-ÿ .'-]/g, ' ').trim();
-      // Sépare en tokens et filtre
       let tokens = cleaned.split(/\s+/).filter(w => {
         const lower = w.toLowerCase();
-        // Garde si ce n'est pas un STOP_WORD et contient au moins une lettre
         return !STOP_WORDS.has(lower) && /[A-Za-z]/.test(w);
       });
-      // Remet en forme avec capitale initiale pour chaque token
       tokens = tokens.map(t => t.charAt(0).toUpperCase() + t.slice(1).toLowerCase());
       return tokens.join(' ').trim();
     }
 
-    const normalize = s => s.toLowerCase().replace(/[^a-z]/g, '');
-
-    // --- Extraction des résultats (score + équipes) ---
-    function extractResults(text) {
-      const lines = text.split('\n').map(l => l.trim()).filter(l => l.length > 0);
-      const results = {};
-      for (let i = 0; i < lines.length; i++) {
-        const m = lines[i].match(/(\d+)\s*[-:]\s*(\d+)/);
-        if (m) {
-          const score = m[1] + '-' + m[2];
-          let team1 = '', team2 = '';
-          // cherche au-dessus
-          for (let j=i-1; j>=0; j--) {
-            const c = cleanName(lines[j]);
-            if (c) { team1 = c; break; }
-          }
-          // cherche en dessous
-          for (let j=i+1; j<lines.length; j++) {
-            const c = cleanName(lines[j]);
-            if (c) { team2 = c; break; }
-          }
-          if (team1 && team2) {
-            results[normalize(team1)] = score;
-            results[normalize(team2)] = score;
-          }
-        }
-      }
-      return results;
-    }
-
-    // --- Extraction des cotes : liste des équipes dans l'ordre + toutes les cotes ---
+    // Extraction des cotes : on lit les équipes dans l'ordre, puis on associe les cotes trois par trois
     function extractOdds(text) {
       const lines = text.split('\n').map(l => l.trim()).filter(l => l.length > 0);
-      
-      // Extraire toutes les équipes rencontrées (dans l'ordre)
       const teamSequence = [];
       const pureNumbers = [];
-      let i = 0;
-      while (i < lines.length) {
-        const name = cleanName(lines[i]);
-        const numbers = lines[i].match(/\d+[.,]\d+/g);
+
+      for (const line of lines) {
+        const name = cleanName(line);
+        const numbers = line.match(/\d+[.,]\d+/g);
         if (numbers) {
           pureNumbers.push(...numbers.map(n => n.replace(',', '.')));
         }
         if (name && !numbers) {
-          // C'est une ligne d'équipe
           teamSequence.push(name);
         }
-        i++;
       }
 
-      // Regrouper les équipes en paires (deux consécutives)
+      // Regrouper les équipes deux par deux
       const pairs = [];
-      for (let j = 0; j < teamSequence.length - 1; j += 2) {
-        pairs.push({ team1: teamSequence[j], team2: teamSequence[j+1] });
+      for (let i = 0; i < teamSequence.length - 1; i += 2) {
+        pairs.push({ team1: teamSequence[i], team2: teamSequence[i+1] });
       }
 
-      // Maintenant, on sait qu'il y a 3 cotes par match (1, N, 2) sur la capture.
-      // On peut donc simplement parcourir les cotes et les attribuer dans l'ordre.
-      const totalOdds = pureNumbers.length;
+      // Les cotes sont toujours groupées par 3 sur la capture : 1, N, 2
       const matches = [];
       let oddIdx = 0;
       for (const pair of pairs) {
-        if (oddIdx + 2 >= totalOdds) break; // besoin d'au moins 2 cotes
-        const home = pureNumbers[oddIdx];
-        const draw = pureNumbers[oddIdx+1];
-        const away = pureNumbers[oddIdx+2];
+        if (oddIdx + 2 >= pureNumbers.length) break;
         matches.push({
           team1: pair.team1,
           team2: pair.team2,
-          homeOdd: home,
-          drawOdd: draw,
-          awayOdd: away
+          homeOdd: pureNumbers[oddIdx],
+          drawOdd: pureNumbers[oddIdx+1],
+          awayOdd: pureNumbers[oddIdx+2]
         });
-        oddIdx += 3; // toujours 3 cotes dans cette capture
+        oddIdx += 3;
       }
       return matches;
     }
 
-    // --- Action principale ---
     analyzeBtn.addEventListener('click', async () => {
-      if (!cotesInput.files[0] || !resultatsInput.files[0]) return alert('Choisissez les deux images');
+      if (!cotesInput.files[0]) return alert('Choisissez l\'image des cotes');
       const apiKey = apiKeyInput.value.trim();
       if (!apiKey) return alert('Entrez votre clé API OCR.space');
 
@@ -178,42 +134,29 @@
       actionsDiv.style.display = 'none';
 
       try {
-        const [cotesText, resultatsText] = await Promise.all([
-          ocrSpace(cotesInput.files[0], apiKey),
-          ocrSpace(resultatsInput.files[0], apiKey)
-        ]);
-
+        const cotesText = await ocrSpace(cotesInput.files[0], apiKey);
         cotesDebug.textContent = cotesText || '(vide)';
-        resultatsDebug.textContent = resultatsText || '(vide)';
         debugArea.style.display = 'block';
 
-        const results = extractResults(resultatsText);
         const matches = extractOdds(cotesText);
 
-        // Fusion avec les résultats
+        tbody.innerHTML = '';
         matches.forEach(m => {
-          const key1 = normalize(m.team1);
-          const key2 = normalize(m.team2);
-          m.result = results[key1] || results[key2] || '–';
+          // Calculer sommes et moyenne
           const h = parseFloat(m.homeOdd);
           const d = parseFloat(m.drawOdd);
           const a = parseFloat(m.awayOdd);
-          if (!isNaN(h) && !isNaN(a)) {
-            m.sum12 = (h + a).toFixed(2);
-            m.sum1N2 = (h + d + a).toFixed(2);
-            m.mean = ((h + d + a) / 3).toFixed(2);
-          } else {
-            m.sum12 = m.sum1N2 = m.mean = '–';
+          let sum12 = '–', sum1N2 = '–', moy = '–';
+          if (!isNaN(h) && !isNaN(d) && !isNaN(a)) {
+            sum12 = (h + a).toFixed(2);
+            sum1N2 = (h + d + a).toFixed(2);
+            moy = ((h + d + a) / 3).toFixed(2);
           }
-        });
 
-        // Rendu
-        tbody.innerHTML = '';
-        matches.forEach(m => {
           const tr = document.createElement('tr');
           tr.innerHTML = `<td>${m.team1}</td><td>${m.team2}</td>
-            <td>${m.homeOdd || '–'}</td><td>${m.drawOdd || '–'}</td><td>${m.awayOdd || '–'}</td>
-            <td>${m.sum12}</td><td>${m.sum1N2}</td><td>${m.mean}</td><td>${m.result}</td>`;
+            <td>${m.homeOdd}</td><td>${m.drawOdd}</td><td>${m.awayOdd}</td>
+            <td>${sum12}</td><td>${sum1N2}</td><td>${moy}</td><td>–</td>`;
           tbody.appendChild(tr);
         });
         resultTable.style.display = 'table';
@@ -225,7 +168,7 @@
       }
     });
 
-    // --- Copier / CSV ---
+    // Copier / CSV
     document.getElementById('copyBtn').onclick = () => {
       const rows = [...tbody.querySelectorAll('tr')];
       const text = rows.map(r => [...r.querySelectorAll('td')].map(d => d.textContent).join('\t')).join('\n');
@@ -240,7 +183,7 @@
       const blob = new Blob([csv], { type: 'text/csv' });
       const a = document.createElement('a');
       a.href = URL.createObjectURL(blob);
-      a.download = 'matchs.csv';
+      a.download = 'cotes.csv';
       a.click();
     };
   </script>
