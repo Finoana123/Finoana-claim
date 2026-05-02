@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Bet261 – Fusion OCR.space v2</title>
+  <title>Bet261 – Fusion finale</title>
   <style>
     body { font-family: sans-serif; max-width: 800px; margin: 2rem auto; padding: 0 1rem; }
     button { padding: 0.8rem 1.5rem; background: #1a73e8; color: white; border: none; border-radius: 6px; cursor: pointer; }
@@ -15,7 +15,7 @@
   </style>
 </head>
 <body>
-  <h1>⚽ Bet261 – Fusion OCR.space v2</h1>
+  <h1>⚽ Bet261 – Fusion finale</h1>
   <p>1. Chargez la capture des <strong>cotes</strong></p>
   <input type="file" id="cotesInput" accept="image/*" />
   <p>2. Chargez la capture des <strong>résultats</strong></p>
@@ -63,7 +63,7 @@
       return data.ParsedResults?.[0]?.ParsedText || '';
     }
 
-    // Nettoyage des noms
+    // Nettoyage noms
     const STOP_WORDS = new Set(['se','connecter','inscrire','s\'inscrire','menu','virtuel','mes','paris','bonus','jouer','comporte','risques','restons','vigilants','bet','261','1x2','mi-tps','double','chance','dc','p','i','xv','yv','size']);
     function cleanName(str) {
       let cleaned = str.replace(/[^A-Za-z À-ÿ'-]/g, ' ').trim();
@@ -73,62 +73,82 @@
     }
     const normalize = s => s.toLowerCase().replace(/[^a-z]/g, '');
 
-    // Extraction des paires et scores depuis le texte résultats
+    // Extraction des paires et des résultats depuis le texte résultats
     function extractResults(text) {
       const lines = text.split('\n').map(l => l.trim()).filter(l => l.length > 0);
       const pairs = [];
       const results = {};
-      // Motif: "Équipe1 ... (score) ... Équipe2" ou "Équipe1 score Équipe2"
-      const pattern = /([A-Za-z .'-]+?)\s+(\d+)\s*[-:]\s*(\d+)\s+([A-Za-z .'-]+)/;
-      for (const line of lines) {
-        const m = line.match(pattern);
-        if (m) {
-          const team1 = cleanName(m[1]);
-          const score = `${m[2]}-${m[3]}`;
-          const team2 = cleanName(m[4]);
+      // On cherche une ligne qui contient un score, puis on capture l'équipe à gauche et l'équipe en dessous ou à droite
+      // Format: "Manchester Red 2:1 Everton" ou "Manchester Red\n2:1\nEverton"
+      for (let i = 0; i < lines.length; i++) {
+        // Chercher un score dans la ligne
+        const scoreMatch = lines[i].match(/(\d+)\s*[-:]\s*(\d+)/);
+        if (scoreMatch) {
+          const score = scoreMatch[1] + '-' + scoreMatch[2];
+          // Chercher l'équipe 1 au-dessus (ligne précédente)
+          let team1 = '', team2 = '';
+          for (let j = i-1; j >= 0; j--) {
+            const candidate = cleanName(lines[j]);
+            if (candidate) { team1 = candidate; break; }
+          }
+          // Chercher l'équipe 2 en dessous
+          for (let j = i+1; j < lines.length; j++) {
+            const candidate = cleanName(lines[j]);
+            if (candidate) { team2 = candidate; break; }
+          }
           if (team1 && team2) {
             pairs.push({ team1, team2 });
             results[normalize(team1)] = score;
             results[normalize(team2)] = score;
+            // Passer les lignes déjà traitées
+            i += 2;
           }
         }
       }
       return { pairs, results };
     }
 
-    // Extraction des cotes par paires
-    function extractOddsForPairs(text, pairs) {
+    // Extraction des cotes : on prend les équipes dans l'ordre, on les met par paires, puis on associe les cotes dans l'ordre
+    function extractOdds(text, pairs) {
       const lines = text.split('\n').map(l => l.trim()).filter(l => l.length > 0);
-      const matches = [];
-      const oddRegex = /\d+[.,]\d+/g;
+      // Extraire toutes les cotes dans l'ordre
+      const allOdds = [];
+      for (const line of lines) {
+        const nums = line.match(/\d+[.,]\d+/g);
+        if (nums) allOdds.push(...nums.map(n => n.replace(',', '.')));
+      }
+      
+      // Extraire les noms d'équipes dans l'ordre depuis le texte des cotes
+      const teamList = [];
+      for (const line of lines) {
+        const name = cleanName(line);
+        if (name && !/\d+[.,]\d+/.test(line) && !STOP_WORDS.has(name.toLowerCase())) {
+          teamList.push(name);
+        }
+      }
 
-      for (const pair of pairs) {
-        // Trouver les lignes contenant les deux équipes (ou au moins la première)
-        const idx1 = lines.findIndex(l => normalize(cleanName(l)) === normalize(pair.team1));
-        const idx2 = lines.findIndex(l => normalize(cleanName(l)) === normalize(pair.team2));
-        if (idx1 === -1) continue;
-        
-        // Chercher les cotes après la première équipe (ou entre les deux)
-        const startIdx = idx1;
-        const endIdx = idx2 !== -1 ? Math.max(idx2, idx1) : idx1 + 3;
-        let odds = [];
-        for (let i = startIdx; i <= Math.min(endIdx + 2, lines.length - 1); i++) {
-          const nums = lines[i].match(oddRegex);
-          if (nums) odds.push(...nums.map(n => n.replace(',', '.')));
-        }
-        
-        if (odds.length >= 2) {
-          const home = odds[0];
-          const away = odds.length === 3 ? odds[2] : odds[1];
-          const draw = odds.length === 3 ? odds[1] : null;
-          matches.push({
-            team1: pair.team1,
-            team2: pair.team2,
-            homeOdd: home,
-            drawOdd: draw,
-            awayOdd: away
-          });
-        }
+      // Construire les paires d'équipes à partir de cette liste (deux consécutives)
+      const cotesPairs = [];
+      for (let i = 0; i < teamList.length - 1; i += 2) {
+        cotesPairs.push({ team1: teamList[i], team2: teamList[i+1] });
+      }
+
+      // Maintenant, associer chaque paire à 3 cotes (ou 2)
+      const matches = [];
+      let oddIdx = 0;
+      for (const pair of cotesPairs) {
+        if (oddIdx >= allOdds.length) break;
+        const home = allOdds[oddIdx];
+        const draw = (oddIdx + 2 < allOdds.length) ? allOdds[oddIdx + 1] : null;
+        const away = draw ? allOdds[oddIdx + 2] : allOdds[oddIdx + 1];
+        matches.push({
+          team1: pair.team1,
+          team2: pair.team2,
+          homeOdd: home,
+          drawOdd: draw,
+          awayOdd: away
+        });
+        oddIdx += draw ? 3 : 2;
       }
       return matches;
     }
@@ -153,9 +173,10 @@
         resultatsDebug.textContent = resultatsText || '(vide)';
         debugArea.style.display = 'block';
 
-        const { pairs, results } = extractResults(resultatsText);
-        const matches = extractOddsForPairs(cotesText, pairs);
+        const { pairs: resultPairs, results } = extractResults(resultatsText);
+        const matches = extractOdds(cotesText, resultPairs);
 
+        // Fusion avec les résultats
         matches.forEach(m => {
           const key1 = normalize(m.team1);
           const key2 = normalize(m.team2);
@@ -189,6 +210,7 @@
       }
     });
 
+    // Copier / CSV
     document.getElementById('copyBtn').onclick = () => {
       const lines = [...tbody.querySelectorAll('tr')].map(tr =>
         [...tr.querySelectorAll('td')].map(td => td.textContent).join('\t')
