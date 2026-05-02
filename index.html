@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Bet261 – Cotes sur liste officielle</title>
+  <title>Bet261 – Cotes (colonnes après équipes)</title>
   <style>
     body { font-family: sans-serif; max-width: 800px; margin: 2rem auto; padding: 0 1rem; }
     button { padding: 0.8rem 1.5rem; background: #1a73e8; color: white; border: none; border-radius: 6px; cursor: pointer; }
@@ -15,7 +15,7 @@
   </style>
 </head>
 <body>
-  <h1>⚽ Bet261 – Cotes (liste officielle)</h1>
+  <h1>⚽ Bet261 – Cotes (colonnes après équipes)</h1>
   <p>Chargez la capture des <strong>cotes</strong> (avant match).</p>
   <input type="file" id="cotesInput" accept="image/*" />
   <p>Clé API OCR.space</p>
@@ -24,6 +24,8 @@
   <div id="debugArea" style="display:none;">
     <h3>Texte brut cotes</h3>
     <div id="cotesDebug" class="debug"></div>
+    <h3>Nombres extraits</h3>
+    <div id="numbersDebug" class="debug"></div>
   </div>
   <table id="resultTable">
     <thead>
@@ -41,7 +43,7 @@
   </div>
 
   <script>
-    // ---------- LISTE OFFICIELLE DES CLUBS (dans l'ordre d'affichage) ----------
+    // Liste officielle des clubs (20 noms → 10 paires)
     const OFFICIAL_CLUBS = [
       "Manchester Red", "Everton",
       "Leeds", "London Blues",
@@ -60,11 +62,11 @@
     const analyzeBtn = document.getElementById('analyzeBtn');
     const debugArea = document.getElementById('debugArea');
     const cotesDebug = document.getElementById('cotesDebug');
+    const numbersDebug = document.getElementById('numbersDebug');
     const resultTable = document.getElementById('resultTable');
     const tbody = resultTable.querySelector('tbody');
     const actionsDiv = document.getElementById('actions');
 
-    // OCR via OCR.space
     async function ocrSpace(file, apiKey) {
       const form = new FormData();
       form.append('apikey', apiKey);
@@ -77,12 +79,8 @@
       return data.ParsedResults?.[0]?.ParsedText || '';
     }
 
-    /**
-     * Extrait tous les nombres décimaux du texte, les divise en 3 colonnes,
-     * puis les associe aux paires d'équipes officielles.
-     */
-    function extractOddsFromText(text) {
-      // Récupérer tous les nombres décimaux dans l'ordre d'apparition
+    function extractOddsFromColumns(text) {
+      // Extraire tous les nombres décimaux dans l'ordre d'apparition
       const allNumbers = [];
       const regex = /\d+[.,]\d+/g;
       let match;
@@ -90,19 +88,21 @@
         allNumbers.push(match[0].replace(',', '.'));
       }
 
-      // Si le nombre total est un multiple de 3, on divise en 3 colonnes
-      const total = allNumbers.length;
-      if (total % 3 !== 0) {
-        console.warn('Nombre total de cotes non multiple de 3 (' + total + '), ajustement approximatif.');
-        // Si ce n'est pas un multiple de 3, on prend le multiple inférieur
-        const correctedTotal = Math.floor(total / 3) * 3;
-        allNumbers.length = correctedTotal;
+      // Debug : afficher le nombre total et la liste
+      numbersDebug.textContent = `Total nombres extraits : ${allNumbers.length}\n` + allNumbers.join('\n');
+
+      // On s'attend à exactement 30 nombres (10 matchs × 3 cotes)
+      // Si plus, on prend les 30 premiers (parasites après ignorés)
+      const relevant = allNumbers.slice(0, 30);
+      if (relevant.length < 30) {
+        console.warn('Nombre insuffisant de cotes : ' + relevant.length);
+        return [];
       }
 
-      const colSize = allNumbers.length / 3;
-      const col1 = allNumbers.slice(0, colSize);
-      const colN = allNumbers.slice(colSize, colSize * 2);
-      const col2 = allNumbers.slice(colSize * 2);
+      // Diviser en 3 colonnes de 10
+      const col1 = relevant.slice(0, 10);   // cotes "1"
+      const colN = relevant.slice(10, 20);  // cotes "N"
+      const col2 = relevant.slice(20, 30);  // cotes "2"
 
       // Paires d'équipes (2 par 2 dans la liste officielle)
       const pairs = [];
@@ -113,9 +113,9 @@
         });
       }
 
-      // Associer les cotes aux paires
+      // Assembler les matchs
       const matches = [];
-      for (let i = 0; i < pairs.length && i < col1.length; i++) {
+      for (let i = 0; i < pairs.length; i++) {
         matches.push({
           team1: pairs[i].team1,
           team2: pairs[i].team2,
@@ -142,7 +142,7 @@
         cotesDebug.textContent = cotesText || '(vide)';
         debugArea.style.display = 'block';
 
-        const matches = extractOddsFromText(cotesText);
+        const matches = extractOddsFromColumns(cotesText);
 
         tbody.innerHTML = '';
         matches.forEach(m => {
@@ -171,7 +171,6 @@
       }
     });
 
-    // Copier / CSV
     document.getElementById('copyBtn').onclick = () => {
       const rows = [...tbody.querySelectorAll('tr')];
       const text = rows.map(r => [...r.querySelectorAll('td')].map(d => d.textContent).join('\t')).join('\n');
