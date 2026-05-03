@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Bet261 – Cotes (30 valeurs après parasites)</title>
+  <title>Bet261 – Cotes (repère colonne 1)</title>
   <style>
     body { font-family: sans-serif; max-width: 800px; margin: 2rem auto; padding: 0 1rem; }
     button { padding: 0.8rem 1.5rem; background: #1a73e8; color: white; border: none; border-radius: 6px; cursor: pointer; }
@@ -15,7 +15,7 @@
   </style>
 </head>
 <body>
-  <h1>⚽ Bet261 – Cotes (corrigé parasites)</h1>
+  <h1>⚽ Bet261 – Cotes (repère colonne 1)</h1>
   <p>Chargez la capture des <strong>cotes</strong> (avant match).</p>
   <input type="file" id="cotesInput" accept="image/*" />
   <p>Clé API OCR.space</p>
@@ -79,21 +79,33 @@
       return data.ParsedResults?.[0]?.ParsedText || '';
     }
 
-    function extractOddsFromColumns(text) {
-      // Extraire tous les nombres décimaux dans l'ordre d'apparition
+    function extractOddsFromText(text) {
+      const lines = text.split('\n').map(l => l.trim());
+      const decimalRegex = /\d+[.,]\d+/g;
+      
+      // Trouver la première ligne qui contient exactement "1" (en-tête de colonne)
+      let startCollecting = false;
       const allNumbers = [];
-      const regex = /\d+[.,]\d+/g;
-      let match;
-      while ((match = regex.exec(text)) !== null) {
-        allNumbers.push(match[0].replace(',', '.'));
+      
+      for (const line of lines) {
+        if (!startCollecting) {
+          // Détecter le marqueur "1" seul (éventuellement avec espaces)
+          if (line === '1' || line === '1.0' || line === '1,0') {
+            startCollecting = true;
+          }
+          continue;
+        }
+        // Extraire tous les nombres décimaux de la ligne
+        const matches = line.match(decimalRegex);
+        if (matches) {
+          matches.forEach(m => allNumbers.push(m.replace(',', '.')));
+        }
       }
 
-      numbersDebug.textContent = `Total nombres extraits : ${allNumbers.length}\n` + allNumbers.join('\n');
+      numbersDebug.textContent = `Total nombres extraits après le marqueur : ${allNumbers.length}\n` + allNumbers.join('\n');
 
-      // Ignorer les 6 premiers nombres parasites (coordonnées d'affichage)
-      const startIndex = 6;
-      const relevant = allNumbers.slice(startIndex, startIndex + 30);
-      
+      // Prendre les 30 premiers (10 matchs × 3 cotes)
+      const relevant = allNumbers.slice(0, 30);
       if (relevant.length < 30) {
         console.warn('Nombre insuffisant de cotes : ' + relevant.length);
         return [];
@@ -142,7 +154,7 @@
         cotesDebug.textContent = cotesText || '(vide)';
         debugArea.style.display = 'block';
 
-        const matches = extractOddsFromColumns(cotesText);
+        const matches = extractOddsFromText(cotesText);
 
         tbody.innerHTML = '';
         matches.forEach(m => {
