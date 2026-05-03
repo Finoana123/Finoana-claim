@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Bet261 – 10 matchs complets</title>
+  <title>Bet261 – 10 matchs par colonnes X</title>
   <style>
     body { font-family: sans-serif; max-width: 800px; margin: 2rem auto; padding: 0 1rem; }
     button { padding: 0.8rem 1.5rem; background: #1a73e8; color: white; border: none; border-radius: 6px; cursor: pointer; }
@@ -15,16 +15,16 @@
   </style>
 </head>
 <body>
-  <h1>⚽ Bet261 – 10 matchs complets</h1>
+  <h1>⚽ Bet261 – 10 matchs (par X)</h1>
   <p>Chargez la capture des <strong>cotes</strong></p>
   <input type="file" id="cotesInput" accept="image/*" />
   <p>Clé API OCR.space</p>
   <input type="text" id="apiKey" placeholder="Votre clé API" style="width:100%; padding:0.5rem; margin-bottom:1rem;" />
   <button id="analyzeBtn">Analyser</button>
   <div id="debugArea" style="display:none;">
-    <h3>Équipes (Y)</h3>
-    <div id="teamsDebug" class="debug"></div>
-    <h3>Cotes (Y)</h3>
+    <h3>Colonnes trouvées</h3>
+    <div id="colsDebug" class="debug"></div>
+    <h3>Cotes triées par colonne</h3>
     <div id="oddsDebug" class="debug"></div>
   </div>
   <table id="resultTable">
@@ -37,7 +37,6 @@
   </div>
 
   <script>
-    // Liste officielle des 20 clubs (10 paires)
     const OFFICIAL_CLUBS = [
       "Manchester Red", "Everton",
       "Leeds", "London Blues",
@@ -55,13 +54,12 @@
     const apiKeyInput = document.getElementById('apiKey');
     const analyzeBtn = document.getElementById('analyzeBtn');
     const debugArea = document.getElementById('debugArea');
-    const teamsDebug = document.getElementById('teamsDebug');
+    const colsDebug = document.getElementById('colsDebug');
     const oddsDebug = document.getElementById('oddsDebug');
     const resultTable = document.getElementById('resultTable');
     const tbody = resultTable.querySelector('tbody');
     const actionsDiv = document.getElementById('actions');
 
-    // OCR avec coordonnées
     async function ocrSpaceWithCoords(file, apiKey) {
       const form = new FormData();
       form.append('apikey', apiKey);
@@ -75,94 +73,94 @@
       return data;
     }
 
-    // Normalisation pour comparaison des noms
-    function normalize(s) {
-      return s.toLowerCase().replace(/[^a-z0-9]/g, '');
-    }
-
     function extractMatches(ocrData) {
       const textOverlay = ocrData.ParsedResults?.[0]?.TextOverlay;
       if (!textOverlay || !textOverlay.Lines) throw new Error('Pas de données de position');
 
-      // Extraire tous les mots
+      // Récupérer tous les mots
       const allWords = [];
       for (const line of textOverlay.Lines) {
         for (const word of line.Words) {
           allWords.push({
             text: word.WordText,
             x: word.Left,
-            y: word.Top,
-            width: word.Width,
-            height: word.Height
+            y: word.Top
           });
         }
       }
 
-      // ----- Étape 1 : repérer les équipes -----
-      const teamEntries = [];
-      for (const club of OFFICIAL_CLUBS) {
-        const normClub = normalize(club);
-        let bestMatch = null;
-        let bestScore = 0;
-        for (const w of allWords) {
-          const normWord = normalize(w.text);
-          if (normWord.includes(normClub) || normClub.includes(normWord)) {
-            const score = Math.min(normWord.length, normClub.length);
-            if (score > bestScore) {
-              bestScore = score;
-              bestMatch = w;
-            }
-          }
-        }
-        if (bestMatch) teamEntries.push({ club, y: bestMatch.y });
-      }
-
-      // Trier les équipes par position Y (de haut en bas)
-      teamEntries.sort((a, b) => a.y - b.y);
-      teamsDebug.textContent = teamEntries.map(t => `${t.club} → Y=${t.y}`).join('\n');
-
-      // ----- Étape 2 : repérer les cotes (nombres décimaux) -----
+      // Chercher le repère "1" (en-tête de colonne)
+      let foundMarker = false;
       const oddEntries = [];
       for (const w of allWords) {
+        if (!foundMarker) {
+          if (w.text === '1' || w.text === '1.0' || w.text === '1,0') {
+            foundMarker = true;
+          }
+          continue;
+        }
+        // Après le marqueur, on enregistre tous les nombres décimaux
         if (/^\d+[.,]\d+$/.test(w.text)) {
           oddEntries.push({
             value: parseFloat(w.text.replace(',', '.')),
-            y: w.y,
-            x: w.x
+            x: w.x,
+            y: w.y
           });
         }
       }
-      oddEntries.sort((a, b) => a.y - b.y);
-      oddsDebug.textContent = oddEntries.map(o => `${o.value.toFixed(2)} → Y=${o.y}`).join('\n');
 
-      // ----- Étape 3 : associer cotes aux paires -----
+      if (oddEntries.length < 30) throw new Error('Pas assez de cotes trouvées après le marqueur');
+
+      // ----- Séparer en 3 colonnes selon X -----
+      // On trie les cotes par X pour trouver les clusters
+      const sortedByX = [...oddEntries].sort((a, b) => a.x - b.x);
+      // Calculer les gaps pour déterminer les séparations entre colonnes
+      const gaps = [];
+      for (let i = 1; i < sortedByX.length; i++) {
+        gaps.push({ gap: sortedByX[i].x - sortedByX[i-1].x, index: i });
+      }
+      // Prendre les deux plus grands écarts comme séparateurs de colonnes
+      gaps.sort((a, b) => b.gap - a.gap);
+      const splitIdx1 = Math.min(gaps[0].index, gaps[1].index);
+      const splitIdx2 = Math.max(gaps[0].index, gaps[1].index);
+
+      // Diviser en 3 groupes
+      const col1 = sortedByX.slice(0, splitIdx1);
+      const colN = sortedByX.slice(splitIdx1, splitIdx2);
+      const col2 = sortedByX.slice(splitIdx2);
+
+      // Trier chaque colonne par Y (de haut en bas)
+      col1.sort((a, b) => a.y - b.y);
+      colN.sort((a, b) => a.y - b.y);
+      col2.sort((a, b) => a.y - b.y);
+
+      // Débogage
+      colsDebug.textContent = `Colonne 1 : ${col1.length} cotes\nColonne N : ${colN.length} cotes\nColonne 2 : ${col2.length} cotes`;
+      oddsDebug.textContent = 
+        "Colonne 1 (Y) : " + col1.map(o => o.value.toFixed(2)).join(', ') + "\n" +
+        "Colonne N (Y) : " + colN.map(o => o.value.toFixed(2)).join(', ') + "\n" +
+        "Colonne 2 (Y) : " + col2.map(o => o.value.toFixed(2)).join(', ');
+
+      // Garder les 10 premières valeurs de chaque colonne
+      const col1Top = col1.slice(0, 10).map(o => o.value.toFixed(2));
+      const colNTop = colN.slice(0, 10).map(o => o.value.toFixed(2));
+      const col2Top = col2.slice(0, 10).map(o => o.value.toFixed(2));
+
+      if (col1Top.length < 10 || colNTop.length < 10 || col2Top.length < 10) {
+        throw new Error('Nombre de cotes insuffisant dans au moins une colonne');
+      }
+
+      // Assembler les matchs avec la liste officielle
       const matches = [];
-      // On parcourt les équipes par paires (0-1, 2-3, ...)
-      for (let i = 0; i < teamEntries.length; i += 2) {
-        if (i + 1 >= teamEntries.length) break;
-        const team1 = teamEntries[i];
-        const team2 = teamEntries[i+1];
-
-        // Définir la zone Y du match : du bas de la 2e équipe jusqu'à la 1ère équipe suivante (ou fin)
-        const yStart = team2.y;                       // juste après la 2e équipe
-        const yEnd = (i + 2 < teamEntries.length) ? teamEntries[i+2].y : 9999;  // avant la prochaine équipe
-
-        // Chercher les cotes dans cette zone
-        const pairOdds = oddEntries.filter(o => o.y >= yStart && o.y < yEnd);
-        // Trier par X pour obtenir l'ordre 1, N, 2
-        pairOdds.sort((a, b) => a.x - b.x);
-
-        if (pairOdds.length >= 3) {
-          matches.push({
-            team1: team1.club,
-            team2: team2.club,
-            homeOdd: pairOdds[0].value.toFixed(2),
-            drawOdd: pairOdds[1].value.toFixed(2),
-            awayOdd: pairOdds[2].value.toFixed(2)
-          });
-        }
+      for (let i = 0; i < 10; i++) {
+        matches.push({
+          team1: OFFICIAL_CLUBS[i*2],
+          team2: OFFICIAL_CLUBS[i*2 + 1],
+          homeOdd: col1Top[i],
+          drawOdd: colNTop[i],
+          awayOdd: col2Top[i]
+        });
       }
-
       return matches;
     }
 
