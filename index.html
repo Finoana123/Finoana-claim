@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Bet261 – Cotes (avec coordonnées)</title>
+  <title>Bet261 – Cotes par position Y</title>
   <style>
     body { font-family: sans-serif; max-width: 800px; margin: 2rem auto; padding: 0 1rem; }
     button { padding: 0.8rem 1.5rem; background: #1a73e8; color: white; border: none; border-radius: 6px; cursor: pointer; }
@@ -15,15 +15,17 @@
   </style>
 </head>
 <body>
-  <h1>⚽ Bet261 – Cotes (coordonnées)</h1>
-  <p>Chargez la capture des <strong>cotes</strong> (avant match).</p>
+  <h1>⚽ Bet261 – Cotes (par Y)</h1>
+  <p>Chargez la capture des <strong>cotes</strong></p>
   <input type="file" id="cotesInput" accept="image/*" />
   <p>Clé API OCR.space</p>
   <input type="text" id="apiKey" placeholder="Votre clé API" style="width:100%; padding:0.5rem; margin-bottom:1rem;" />
-  <button id="analyzeBtn">Analyser les cotes</button>
+  <button id="analyzeBtn">Analyser</button>
   <div id="debugArea" style="display:none;">
-    <h3>Cotes triées par position</h3>
-    <div id="cotesDebug" class="debug"></div>
+    <h3>Équipes trouvées</h3>
+    <div id="teamsDebug" class="debug"></div>
+    <h3>Cotes trouvées</h3>
+    <div id="oddsDebug" class="debug"></div>
   </div>
   <table id="resultTable">
     <thead><tr><th>Équipe 1</th><th>Équipe 2</th><th>1</th><th>N</th><th>2</th><th>S 1+2</th><th>S 1+N+2</th><th>Moy</th></tr></thead>
@@ -52,7 +54,8 @@
     const apiKeyInput = document.getElementById('apiKey');
     const analyzeBtn = document.getElementById('analyzeBtn');
     const debugArea = document.getElementById('debugArea');
-    const cotesDebug = document.getElementById('cotesDebug');
+    const teamsDebug = document.getElementById('teamsDebug');
+    const oddsDebug = document.getElementById('oddsDebug');
     const resultTable = document.getElementById('resultTable');
     const tbody = resultTable.querySelector('tbody');
     const actionsDiv = document.getElementById('actions');
@@ -63,100 +66,101 @@
       form.append('file', file, 'image.png');
       form.append('language', 'fre');
       form.append('OCREngine', 2);
-      form.append('isTable', 'true');  // demande la détection de tableau
-      const res = await fetch('https://api.ocr.space/parse/image', {
-        method: 'POST',
-        body: form
-      });
+      form.append('isTable', 'true');
+      const res = await fetch('https://api.ocr.space/parse/image', { method: 'POST', body: form });
       const data = await res.json();
       if (data.IsErroredOnProcessing) throw new Error(data.ErrorMessage || 'Erreur OCR');
       return data;
     }
 
-    function extractOddsFromOcrResult(ocrData) {
-      const parsedResults = ocrData.ParsedResults?.[0];
-      if (!parsedResults) return [];
+    function normalize(s) {
+      return s.toLowerCase().replace(/[^a-z0-9]/g, '');
+    }
 
-      const textOverlay = parsedResults.TextOverlay;
+    function extractMatches(ocrData) {
+      const textOverlay = ocrData.ParsedResults?.[0]?.TextOverlay;
       if (!textOverlay || !textOverlay.Lines) {
-        // Fallback : utiliser le texte brut
-        const text = parsedResults.ParsedText;
-        const numbers = text.match(/\d+[.,]\d+/g) || [];
-        const relevant = numbers.map(n => n.replace(',', '.')).slice(0, 30);
-        if (relevant.length < 30) return [];
-        const col1 = relevant.slice(0, 10);
-        const colN = relevant.slice(10, 20);
-        const col2 = relevant.slice(20, 30);
-        return OFFICIAL_CLUBS.reduce((acc, _, i, arr) => {
-          if (i % 2 === 0) acc.push({ team1: arr[i], team2: arr[i+1], homeOdd: col1[i/2], drawOdd: colN[i/2], awayOdd: col2[i/2] });
-          return acc;
-        }, []);
+        throw new Error('Pas de données de position');
       }
 
-      // Exploiter les coordonnées des lignes
+      // Récupérer tous les mots avec leur position
       const allWords = [];
       for (const line of textOverlay.Lines) {
         for (const word of line.Words) {
-          // Ne garder que les mots qui sont des nombres décimaux
-          if (/^\d+[.,]\d+$/.test(word.WordText)) {
-            allWords.push({
-              text: word.WordText.replace(',', '.'),
-              x: word.Left,
-              y: word.Top
-            });
-          }
-        }
-      }
-
-      // On ne garde que les nombres situés en dessous du repère "1" (ou après les équipes)
-      // Trouver le Y moyen après les équipes (par ex. y > 200)
-      const thresholdY = 200; // à ajuster selon la capture
-      const cotesWords = allWords.filter(w => w.y > thresholdY);
-
-      // Trier par Y puis par X pour avoir les lignes de cotes (de gauche à droite, de haut en bas)
-      cotesWords.sort((a, b) => a.y - b.y || a.x - b.x);
-
-      // Regrouper par lignes (même Y approximatif, tolérance 10 pixels)
-      const rows = [];
-      let currentRow = [];
-      let currentY = -1;
-      for (const w of cotesWords) {
-        if (currentY === -1 || Math.abs(w.y - currentY) <= 10) {
-          currentRow.push(w.text);
-          currentY = w.y;
-        } else {
-          if (currentRow.length) rows.push(currentRow);
-          currentRow = [w.text];
-          currentY = w.y;
-        }
-      }
-      if (currentRow.length) rows.push(currentRow);
-
-      // Normalement, on obtient 10 lignes de 3 cotes.
-      const matches = [];
-      for (let i = 0; i < rows.length && i < 10; i++) {
-        const row = rows[i];
-        if (row.length >= 3) {
-          matches.push({
-            team1: OFFICIAL_CLUBS[i*2],
-            team2: OFFICIAL_CLUBS[i*2 + 1],
-            homeOdd: row[0],
-            drawOdd: row[1],
-            awayOdd: row[2]
+          allWords.push({
+            text: word.WordText,
+            x: word.Left,
+            y: word.Top,
+            width: word.Width,
+            height: word.Height
           });
         }
       }
 
-      // Si on n'a pas 10 matchs, fallback sur la méthode simple
-      if (matches.length < 10) {
-        const numbers = cotesWords.map(w => w.text).slice(0, 30);
-        const col1 = numbers.slice(0, 10);
-        const colN = numbers.slice(10, 20);
-        const col2 = numbers.slice(20, 30);
-        return OFFICIAL_CLUBS.reduce((acc, _, i, arr) => {
-          if (i % 2 === 0) acc.push({ team1: arr[i], team2: arr[i+1], homeOdd: col1[i/2], drawOdd: colN[i/2], awayOdd: col2[i/2] });
-          return acc;
-        }, []);
+      // Identifier les équipes (en comparant avec la liste officielle)
+      const teamEntries = [];
+      for (const club of OFFICIAL_CLUBS) {
+        const normClub = normalize(club);
+        // Trouver le mot qui correspond le mieux (peut être sur plusieurs mots)
+        // On cherche un mot qui contient une partie significative du club
+        let bestMatch = null;
+        let bestScore = 0;
+        for (const w of allWords) {
+          const normWord = normalize(w.text);
+          if (normWord.includes(normClub) || normClub.includes(normWord)) {
+            const score = Math.min(normWord.length, normClub.length);
+            if (score > bestScore) {
+              bestScore = score;
+              bestMatch = w;
+            }
+          }
+        }
+        if (bestMatch) {
+          teamEntries.push({ club, y: bestMatch.y });
+        }
+      }
+
+      // Trier les équipes par Y
+      teamEntries.sort((a, b) => a.y - b.y);
+
+      // Identifier les cotes (nombres décimaux)
+      const oddEntries = [];
+      for (const w of allWords) {
+        if (/^\d+[.,]\d+$/.test(w.text)) {
+          oddEntries.push({
+            value: parseFloat(w.text.replace(',', '.')),
+            y: w.y
+          });
+        }
+      }
+      // Trier les cotes par Y
+      oddEntries.sort((a, b) => a.y - b.y);
+
+      // Débogage
+      teamsDebug.textContent = teamEntries.map(t => `${t.club} → Y=${t.y}`).join('\n');
+      oddsDebug.textContent = oddEntries.map(o => `${o.value} → Y=${o.y}`).join('\n');
+
+      // Associer les cotes aux paires d'équipes
+      const matches = [];
+      for (let i = 0; i < teamEntries.length; i += 2) {
+        if (i + 1 >= teamEntries.length) break;
+        const team1 = teamEntries[i];
+        const team2 = teamEntries[i+1];
+        // Chercher les cotes dont le Y est entre team1.y et team2.y
+        const yMin = team1.y;
+        const yMax = team2.y;
+        const pairOdds = oddEntries.filter(o => o.y >= yMin && o.y <= yMax);
+        if (pairOdds.length >= 3) {
+          // Trier par X pour avoir 1, N, 2
+          pairOdds.sort((a, b) => a.x - b.x);
+          matches.push({
+            team1: team1.club,
+            team2: team2.club,
+            homeOdd: pairOdds[0].value.toFixed(2),
+            drawOdd: pairOdds[1].value.toFixed(2),
+            awayOdd: pairOdds[2].value.toFixed(2)
+          });
+        }
       }
 
       return matches;
@@ -174,10 +178,7 @@
 
       try {
         const ocrData = await ocrSpaceWithCoords(cotesInput.files[0], apiKey);
-        const matches = extractOddsFromOcrResult(ocrData);
-
-        cotesDebug.textContent = JSON.stringify(matches.map(m => ({ t1: m.team1, t2: m.team2, o: [m.homeOdd, m.drawOdd, m.awayOdd] })), null, 2);
-        debugArea.style.display = 'block';
+        const matches = extractMatches(ocrData);
 
         tbody.innerHTML = '';
         matches.forEach(m => {
@@ -201,9 +202,23 @@
       }
     });
 
-    // Boutons copier/CSV inchangés...
-    document.getElementById('copyBtn').onclick = () => { /* ... */ };
-    document.getElementById('csvBtn').onclick = () => { /* ... */ };
+    document.getElementById('copyBtn').onclick = () => {
+      const rows = [...tbody.querySelectorAll('tr')];
+      const text = rows.map(r => [...r.querySelectorAll('td')].map(d => d.textContent).join('\t')).join('\n');
+      navigator.clipboard.writeText(text).then(() => alert('Copié !'));
+    };
+    document.getElementById('csvBtn').onclick = () => {
+      let csv = 'Équipe 1,Équipe 2,1,N,2,Somme 1+2,Somme 1+N+2,Moyenne\n';
+      [...tbody.querySelectorAll('tr')].forEach(r => {
+        const tds = [...r.querySelectorAll('td')].map(d => d.textContent);
+        csv += tds.map(v => `"${v}"`).join(',') + '\n';
+      });
+      const blob = new Blob([csv], { type: 'text/csv' });
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = 'cotes.csv';
+      a.click();
+    };
   </script>
 </body>
 </html>
